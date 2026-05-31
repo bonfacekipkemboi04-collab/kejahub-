@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keja Hub — Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090C;--surf:#0F1318;--card:#161B22;--border:#21262E;
+  --gold:#D4A017;--lime:#2ECC71;--red:#EF4444;--blue:#3B82F6;--mpesa:#00A651;
+  --text:#E2E8F0;--muted:#64748B;--white:#F8FAFC;
+}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* LOADER */
+#loader{position:fixed;inset:0;background:var(--bg);z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#loader.gone{display:none}
+.ld-logo{font-family:'Fraunces',serif;font-size:1.8rem;font-weight:900;color:#fff;letter-spacing:-1px}
+.ld-logo span{color:var(--lime)}
+.ld-bar{width:160px;height:2px;background:rgba(255,255,255,.1);border-radius:50px;overflow:hidden}
+.ld-fill{height:100%;background:var(--lime);animation:lfill 1.4s ease forwards}
+
+/* LOGIN */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);padding:24px;display:none}
+#login.show{display:flex}
+.lbox{width:100%;max-width:400px}
+.llogo{font-family:'Fraunces',serif;font-size:1.6rem;font-weight:900;color:#fff;
+  margin-bottom:4px;letter-spacing:-0.5px}
+.llogo span{color:var(--lime)}
+.lsub{font-size:.78rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-bottom:32px}
+.lcard{background:var(--surf);border:1px solid var(--border);border-radius:20px;padding:32px;
+  box-shadow:0 24px 64px rgba(0,0,0,.5)}
+.lcard h2{font-family:'Fraunces',serif;font-size:1.3rem;font-weight:900;margin-bottom:4px}
+.lcard p{font-size:.8rem;color:var(--muted);margin-bottom:24px}
+.lf{margin-bottom:16px}
+.lf label{display:block;font-size:.72rem;font-weight:700;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.lf input{width:100%;padding:12px 14px;background:#1C2230;border:1px solid var(--border);
+  border-radius:10px;color:#fff;font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.92rem;outline:none;transition:.2s;caret-color:#fff;
+  -webkit-text-fill-color:#fff}
+.lf input::placeholder{color:#3D4D6A;-webkit-text-fill-color:#3D4D6A}
+.lf input:focus{border-color:var(--gold);background:#20283A}
+.lerr{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);
+  color:#FCA5A5;border-radius:8px;padding:9px 12px;font-size:.8rem;
+  margin-bottom:14px;display:none}
+.lerr.on{display:block}
+.lbtn{width:100%;padding:13px;background:var(--gold);color:#000;border:none;
+  border-radius:10px;font-family:'Fraunces',serif;font-size:.95rem;font-weight:900;
+  cursor:pointer;transition:.2s;letter-spacing:.3px}
+.lbtn:hover{background:#BC8E10;box-shadow:0 8px 24px rgba(212,160,23,.3)}
+.lhint{font-size:.72rem;color:var(--muted);text-align:center;margin-top:14px;
+  font-family:'IBM Plex Mono',monospace;background:rgba(255,255,255,.03);
+  border-radius:8px;padding:8px}
+
+/* DASHBOARD */
+#dash{display:none;min-height:100vh}
+#dash.show{display:flex}
+.sidebar{width:230px;background:var(--surf);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:50}
+.sb-logo{padding:22px 18px;border-bottom:1px solid var(--border);
+  font-family:'Fraunces',serif;font-size:1.1rem;font-weight:900;letter-spacing:-0.5px}
+.sb-logo span{color:var(--lime)}
+.sb-badge{font-size:.58rem;background:var(--gold);color:#000;padding:2px 7px;
+  border-radius:50px;margin-left:6px;font-family:'IBM Plex Mono',monospace;font-weight:700}
+.sb-nav{flex:1;padding:14px 10px;display:flex;flex-direction:column;gap:3px}
+.ni{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+  cursor:pointer;font-size:.86rem;font-weight:500;color:var(--muted);
+  border:none;background:none;width:100%;text-align:left;font-family:'Plus Jakarta Sans',sans-serif;
+  transition:.15s}
+.ni:hover{background:var(--card);color:var(--text)}
+.ni.on{background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.15)}
+.ni .ic{width:18px;text-align:center;font-size:.95rem}
+.nbadge{margin-left:auto;background:var(--red);color:#fff;font-size:.62rem;
+  font-weight:700;padding:2px 6px;border-radius:50px;font-family:'IBM Plex Mono',monospace}
+.sb-foot{padding:14px;border-top:1px solid var(--border)}
+.apill{display:flex;align-items:center;gap:10px;background:var(--card);
+  border-radius:10px;padding:9px 12px;cursor:pointer;transition:.2s}
+.apill:hover{border-color:var(--red)}
+.aav{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--gold),#E05C2A);
+  display:flex;align-items:center;justify-content:center;color:#000;font-size:.82rem;font-weight:700}
+.aname{font-size:.8rem;font-weight:600;color:var(--text);flex:1}
+.arole{font-size:.65rem;color:var(--gold);font-family:'IBM Plex Mono',monospace}
+.main{margin-left:230px;flex:1;padding:28px;min-height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
+.ptitle{font-family:'Fraunces',serif;font-size:1.5rem;font-weight:900;letter-spacing:-.5px}
+.tbr{display:flex;align-items:center;gap:10px}
+.sfield{background:var(--surf);border:1px solid var(--border);border-radius:50px;
+  padding:8px 16px;color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.83rem;outline:none;width:180px;transition:.2s}
+.sfield:focus{border-color:var(--gold)}
+.ibtn{background:var(--surf);border:1px solid var(--border);color:var(--muted);
+  border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.82rem;transition:.2s;
+  font-family:'Plus Jakarta Sans',sans-serif}
+.ibtn:hover{border-color:var(--gold);color:var(--gold)}
+.ibtn.primary{background:var(--gold);color:#000;border-color:var(--gold);font-weight:700}
+.ibtn.primary:hover{background:#BC8E10}
+
+/* PAGES */
+.pg{display:none}.pg.on{display:block;animation:fup .3s ease}
+
+/* STAT CARDS */
+.sgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.sc{background:var(--surf);border:1px solid var(--border);border-radius:14px;
+  padding:20px;position:relative;overflow:hidden}
+.sc::after{content:'';position:absolute;top:-16px;right:-16px;width:70px;height:70px;border-radius:50%;opacity:.07}
+.sc.g::after{background:var(--gold)}.sc.l::after{background:var(--lime)}
+.sc.r::after{background:var(--red)}.sc.b::after{background:var(--blue)}
+.sc.m::after{background:var(--mpesa)}
+.sic{font-size:1.3rem;margin-bottom:10px}
+.sv{font-family:'Fraunces',serif;font-size:1.9rem;font-weight:900;line-height:1}
+.sl{font-size:.72rem;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.8px}
+.sd{font-size:.72rem;margin-top:7px;font-family:'IBM Plex Mono',monospace}
+.sd.up{color:var(--lime)}.sd.dn{color:var(--red)}.sd.nt{color:var(--muted)}
+
+/* TABLES */
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.sh h3{font-family:'Fraunces',serif;font-size:.95rem;font-weight:700}
+.tw{background:var(--surf);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px}
+table{width:100%;border-collapse:collapse}
+th{padding:11px 16px;font-size:.68rem;text-transform:uppercase;letter-spacing:.8px;
+  color:var(--muted);font-weight:600;text-align:left;border-bottom:1px solid var(--border);background:var(--card)}
+td{padding:12px 16px;font-size:.83rem;border-bottom:1px solid rgba(33,38,46,.7);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(212,160,23,.02)}
+.bx{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:50px;
+  font-size:.68rem;font-weight:700;font-family:'IBM Plex Mono',monospace}
+.bx.vacant{background:rgba(46,204,113,.1);color:var(--lime);border:1px solid rgba(46,204,113,.2)}
+.bx.rented{background:rgba(100,116,139,.1);color:var(--muted);border:1px solid rgba(100,116,139,.2)}
+.bx.pending{background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.2)}
+.bx.active{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.bx.suspended{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.bx.new{background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.2)}
+.bx.responded{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.bx.paid{background:rgba(0,166,81,.1);color:var(--mpesa);border:1px solid rgba(0,166,81,.2)}
+.acts{display:flex;gap:5px;flex-wrap:wrap}
+.ab{padding:4px 9px;border-radius:6px;font-size:.7rem;font-weight:600;cursor:pointer;
+  border:1px solid var(--border);background:var(--card);color:var(--muted);
+  transition:.15s;font-family:'Plus Jakarta Sans',sans-serif}
+.ab:hover{border-color:var(--gold);color:var(--gold)}
+.ab.r:hover{border-color:var(--red);color:var(--red)}
+.ab.g:hover{border-color:var(--lime);color:var(--lime)}
+.ab.b:hover{border-color:var(--blue);color:var(--blue)}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;
+  align-items:center;justify-content:center;padding:20px}
+.ov.open{display:flex;animation:fi .2s ease}
+.mo{background:var(--surf);border:1px solid var(--border);border-radius:20px;
+  padding:30px;max-width:500px;width:100%;position:relative;
+  animation:si .25s ease;max-height:90vh;overflow-y:auto}
+.mo h3{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:900;margin-bottom:4px}
+.mo .sub{font-size:.8rem;color:var(--muted);margin-bottom:22px}
+.mc{position:absolute;top:14px;right:16px;background:none;border:none;
+  color:var(--muted);font-size:1.1rem;cursor:pointer}
+.mf{margin-bottom:14px}
+.mf label{display:block;font-size:.7rem;font-weight:700;letter-spacing:.6px;
+  text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.mf input,.mf select,.mf textarea{width:100%;padding:10px 13px;background:var(--card);
+  border:1px solid var(--border);border-radius:9px;color:var(--text);
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:.88rem;outline:none;transition:.2s}
+.mf input:focus,.mf select:focus,.mf textarea:focus{border-color:var(--gold)}
+.mf textarea{resize:vertical;min-height:75px}
+.mr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.macts{display:flex;gap:8px;margin-top:4px}
+.mbtn{flex:1;padding:11px;border:none;border-radius:9px;font-family:'Fraunces',serif;
+  font-weight:700;font-size:.88rem;cursor:pointer;transition:.2s}
+.mbtn.p{background:var(--gold);color:#000}.mbtn.p:hover{background:#BC8E10}
+.mbtn.gh{background:var(--card);color:var(--text);border:1px solid var(--border)}
+
+/* CONFIRM */
+.cbox{background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:24px;max-width:340px;text-align:center;animation:si .2s ease}
+.cbox h3{font-family:'Fraunces',serif;font-size:1.05rem;margin-bottom:8px}
+.cbox p{font-size:.8rem;color:var(--muted);margin-bottom:20px;line-height:1.6}
+.cacts{display:flex;gap:8px;justify-content:center}
+
+/* ACTIVITY */
+.aitem{display:flex;align-items:flex-start;gap:12px;padding:12px 0;
+  border-bottom:1px solid var(--border)}
+.aitem:last-child{border-bottom:none}
+.adot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0}
+.adot.g{background:var(--gold)}.adot.l{background:var(--lime)}
+.adot.r{background:var(--red)}.adot.b{background:var(--blue)}.adot.m{background:var(--mpesa)}
+.atxt{font-size:.82rem;line-height:1.5;flex:1}
+.atime{font-size:.68rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-top:2px}
+
+/* SETTINGS */
+.ss{background:var(--surf);border:1px solid var(--border);border-radius:14px;
+  padding:22px;margin-bottom:18px}
+.ss h3{font-family:'Fraunces',serif;font-size:.9rem;font-weight:700;
+  margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.sr{display:flex;align-items:center;justify-content:space-between;
+  padding:11px 0;border-bottom:1px solid rgba(33,38,46,.5)}
+.sr:last-child{border-bottom:none}
+.si .st{font-size:.84rem;font-weight:600;margin-bottom:3px}
+.si .sd2{font-size:.74rem;color:var(--muted)}
+.tgl{position:relative;width:40px;height:22px;cursor:pointer;flex-shrink:0}
+.tgl input{opacity:0;width:0;height:0;position:absolute}
+.ttr{position:absolute;inset:0;background:var(--border);border-radius:50px;transition:.25s}
+.tgl input:checked+.ttr{background:var(--gold)}
+.tth{position:absolute;top:3px;left:3px;width:16px;height:16px;
+  background:#fff;border-radius:50%;transition:.25s}
+.tgl input:checked~.tth{left:21px}
+
+/* CHART */
+.barchart{display:flex;align-items:flex-end;gap:4px;height:55px;margin-top:10px}
+.bar{flex:1;border-radius:3px 3px 0 0;min-height:3px;transition:height .5s ease}
+.bar.hi{background:var(--gold)}.bar.lo{background:var(--border)}
+
+/* REVENUE */
+.rev-card{background:linear-gradient(135deg,#0D2B0D,#0A4020);border:1px solid rgba(0,166,81,.2);
+  border-radius:14px;padding:22px;margin-bottom:20px}
+.rev-card h3{color:#fff;font-family:'Fraunces',serif;font-size:1rem;font-weight:700;
+  display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.rev-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.rv{background:rgba(255,255,255,.06);border-radius:10px;padding:12px;border:1px solid rgba(255,255,255,.08)}
+.rv .rn{font-family:'Fraunces',serif;font-size:1.3rem;font-weight:900;color:var(--lime)}
+.rv .rl{font-size:.7rem;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.8px;margin-top:4px}
+
+/* TOAST */
+#toast{position:fixed;bottom:20px;right:20px;z-index:9999;background:var(--surf);
+  border:1px solid var(--lime);border-radius:10px;padding:10px 18px;
+  font-size:.82rem;color:var(--lime);box-shadow:0 8px 24px rgba(0,0,0,.4);
+  display:none;font-family:'IBM Plex Mono',monospace}
+#toast.on{display:block;animation:fup .3s ease}
+#toast.err{border-color:var(--red);color:var(--red)}
+#toast.wrn{border-color:var(--gold);color:var(--gold)}
+#toast.mpesa{border-color:var(--mpesa);color:var(--mpesa)}
+
+.empty-row td{text-align:center;padding:36px;color:var(--muted);font-size:.84rem}
+
+@keyframes fup{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fi{from{opacity:0}to{opacity:1}}
+@keyframes si{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes lfill{from{width:0}to{width:100%}}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="ld-logo">Kenya<span>Estates</span></div>
+  <div class="ld-bar"><div class="ld-fill"></div></div>
+  <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-top:4px;font-family:'IBM Plex Mono',monospace">Connecting to Firebase…</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="lbox">
+    <div class="llogo">Kenya<span>Estates</span></div>
+    <div class="lsub">// ADMIN CONTROL PANEL v2.0</div>
+    <div class="lcard">
+      <h2>Administrator Login</h2>
+      <p>Restricted access — authorised personnel only</p>
+      <div class="lerr" id="lerr"></div>
+      <div class="lf"><label>Admin Email</label>
+        <input type="email" id="ladmin-email" placeholder="admin@kejahub.co.ke" autocomplete="off"></div>
+      <div class="lf"><label>Password</label>
+        <input type="password" id="ladmin-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="lbtn" onclick="doLogin()">Access Dashboard →</button>
+      <div class="lhint">Firebase Auth secured · Session expires on sign-out</div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dash">
+  <aside class="sidebar">
+    <div class="sb-logo">Kenya<span>Estates</span><span class="sb-badge">ADMIN</span></div>
+    <nav class="sb-nav">
+      <button class="ni on" onclick="showPg('overview',this)"><span class="ic">⚡</span>Overview</button>
+      <button class="ni" onclick="showPg('listings',this)"><span class="ic">🏠</span>Listings<span class="nbadge" id="nb-pending" style="display:none">0</span></button>
+      <button class="ni" onclick="showPg('landlords',this)"><span class="ic">👤</span>Landlords</button>
+      <button class="ni" onclick="showPg('enquiries',this)"><span class="ic">📩</span>Enquiries<span class="nbadge" id="nb-enq" style="display:none">0</span></button>
+      <button class="ni" onclick="showPg('payments',this)"><span class="ic">💰</span>M-Pesa Revenue</button>
+      <button class="ni" onclick="showPg('analytics',this)"><span class="ic">📊</span>Analytics</button>
+      <button class="ni" onclick="showPg('settings',this)"><span class="ic">⚙️</span>Settings</button>
+    </nav>
+    <div class="sb-foot">
+      <div class="apill" onclick="doSignOut()">
+        <div class="aav" id="aav">A</div>
+        <div>
+          <div class="aname" id="aname">Admin</div>
+          <div class="arole">superuser · tap to logout</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- OVERVIEW -->
+    <div id="pg-overview" class="pg on">
+      <div class="topbar">
+        <div class="ptitle">Dashboard</div>
+        <div class="tbr">
+          <span style="font-size:.75rem;color:var(--muted);font-family:'IBM Plex Mono',monospace" id="clock"></span>
+          <button class="ibtn" onclick="toast('Data refreshed ✓')">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="sgrid">
+        <div class="sc g"><div class="sic">🏠</div><div class="sv" id="sv-listings">—</div><div class="sl">Total Listings</div><div class="sd up" id="sd-listings">Loading…</div></div>
+        <div class="sc l"><div class="sic">✅</div><div class="sv" id="sv-vacant">—</div><div class="sl">Vacant Now</div><div class="sd up">Available to tenants</div></div>
+        <div class="sc r"><div class="sic">👤</div><div class="sv" id="sv-landlords">—</div><div class="sl">Landlords</div><div class="sd up">Registered accounts</div></div>
+        <div class="sc b"><div class="sic">📩</div><div class="sv" id="sv-enquiries">—</div><div class="sl">Enquiries</div><div class="sd up">From tenants</div></div>
+      </div>
+      <div class="sc m" style="margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+        <div><div class="sic">💰</div><div class="sv" id="sv-revenue">KES 0</div><div class="sl">Total M-Pesa Revenue</div></div>
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">Revenue this week</div>
+          <div class="barchart" id="rev-chart"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:18px">
+        <div>
+          <div class="sh"><h3>Recent Listings</h3>
+            <button class="ibtn primary" onclick="openAddListing()">+ Add Listing</button></div>
+          <div class="tw"><table>
+            <thead><tr><th>Property</th><th>County</th><th>Rent</th><th>Status</th><th>Tier</th><th>Actions</th></tr></thead>
+            <tbody id="ov-table"></tbody>
+          </table></div>
+        </div>
+        <div>
+          <div class="sh"><h3>Live Activity</h3></div>
+          <div class="tw" style="padding:4px 16px" id="activity-feed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LISTINGS -->
+    <div id="pg-listings" class="pg">
+      <div class="topbar">
+        <div class="ptitle">Manage Listings</div>
+        <div class="tbr">
+          <input class="sfield" type="text" placeholder="Search listings…" oninput="ftable(this,'ltable')">
+          <button class="ibtn primary" onclick="openAddListing()">+ New Listing</button>
+        </div>
+      </div>
+      <div class="tw"><table>
+        <thead><tr><th>#</th><th>Title</th><th>Type</th><th>County/Area</th><th>Rent (KES)</th><th>Beds</th><th>Status</th><th>Tier</th><th>Landlord</th><th>Actions</th></tr></thead>
+        <tbody id="ltable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- LANDLORDS -->
+    <div id="pg-landlords" class="pg">
+      <div class="topbar">
+        <div class="ptitle">Landlords</div>
+        <div class="tbr">
+          <input class="sfield" type="text" placeholder="Search landlords…" oninput="ftable(this,'lltable')">
+          <button class="ibtn primary" onclick="openAddLandlord()">+ Add Landlord</button>
+        </div>
+      </div>
+      <div class="tw"><table>
+        <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>County</th><th>Listings</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+        <tbody id="lltable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- ENQUIRIES -->
+    <div id="pg-enquiries" class="pg">
+      <div class="topbar">
+        <div class="ptitle">Tenant Enquiries</div>
+        <div class="tbr">
+          <input class="sfield" type="text" placeholder="Search enquiries…" oninput="ftable(this,'etable')">
+        </div>
+      </div>
+      <div class="tw"><table>
+        <thead><tr><th>#</th><th>Tenant</th><th>Phone</th><th>Property</th><th>Message</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="etable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- PAYMENTS -->
+    <div id="pg-payments" class="pg">
+      <div class="topbar"><div class="ptitle">M-Pesa Revenue</div></div>
+      <div class="rev-card">
+        <h3>📱 M-Pesa Collection Summary</h3>
+        <div class="rev-grid">
+          <div class="rv"><div class="rn" id="rev-total">KES 0</div><div class="rl">Total Collected</div></div>
+          <div class="rv"><div class="rn" id="rev-month">KES 0</div><div class="rl">This Month</div></div>
+          <div class="rv"><div class="rn" id="rev-txns">0</div><div class="rl">Transactions</div></div>
+          <div class="rv"><div class="rn" id="rev-avg">KES 0</div><div class="rl">Avg per Listing</div></div>
+        </div>
+      </div>
+      <div class="sh"><h3>Payment Records</h3></div>
+      <div class="tw"><table>
+        <thead><tr><th>#</th><th>Landlord</th><th>Phone</th><th>Amount</th><th>Plan</th><th>Property</th><th>Date</th><th>Status</th></tr></thead>
+        <tbody id="ptable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- ANALYTICS -->
+    <div id="pg-analytics" class="pg">
+      <div class="topbar"><div class="ptitle">Analytics</div></div>
+      <div class="sgrid">
+        <div class="sc g"><div class="sic">📈</div><div class="sv" id="an-fill">—%</div><div class="sl">Fill Rate</div><div class="sd up">Vacancy fill performance</div></div>
+        <div class="sc l"><div class="sic">⏱</div><div class="sv">4.2d</div><div class="sl">Avg Days to Fill</div><div class="sd up">↓ improving</div></div>
+        <div class="sc b"><div class="sic">📍</div><div class="sv" id="an-counties">—</div><div class="sl">Active Counties</div><div class="sd nt">Across Kenya</div></div>
+        <div class="sc r"><div class="sic">🔄</div><div class="sv" id="an-conv">—%</div><div class="sl">Enquiry Rate</div><div class="sd nt">Enquiries per listing</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <div class="ss"><h3>Enquiries This Week</h3>
+          <div class="barchart" id="enq-chart"></div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:.65rem;color:var(--muted);font-family:'IBM Plex Mono',monospace">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+          </div>
+        </div>
+        <div class="ss"><h3>Listings by County</h3>
+          <div id="county-breakdown" style="margin-top:8px"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px">
+        <div class="ss"><h3>Property Type Split</h3>
+          <div id="type-breakdown"></div>
+        </div>
+        <div class="ss"><h3>Listing Tier Distribution</h3>
+          <div id="tier-breakdown"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="pg-settings" class="pg">
+      <div class="topbar"><div class="ptitle">Platform Settings</div></div>
+      <div class="ss">
+        <h3>Platform Controls</h3>
+        <div class="sr"><div class="si"><div class="st">Public Listings Visible</div><div class="sd2">Allow public to browse all listings</div></div><label class="tgl"><input type="checkbox" checked onchange="toast('✓ Setting saved')"><div class="ttr"></div><div class="tth"></div></label></div>
+        <div class="sr"><div class="si"><div class="st">New Landlord Registrations</div><div class="sd2">Allow new sign-ups on the platform</div></div><label class="tgl"><input type="checkbox" checked onchange="toast('✓ Setting saved')"><div class="ttr"></div><div class="tth"></div></label></div>
+        <div class="sr"><div class="si"><div class="st">Auto-Approve Listings</div><div class="sd2">Publish without manual admin review</div></div><label class="tgl"><input type="checkbox" onchange="toast('✓ Setting saved')"><div class="ttr"></div><div class="tth"></div></label></div>
+        <div class="sr"><div class="si"><div class="st">M-Pesa Payments Active</div><div class="sd2">Accept listing fee payments via M-Pesa</div></div><label class="tgl"><input type="checkbox" checked onchange="toast('✓ M-Pesa setting updated','mpesa')"><div class="ttr"></div><div class="tth"></div></label></div>
+        <div class="sr"><div class="si"><div class="st">Maintenance Mode</div><div class="sd2">Take platform offline for maintenance</div></div><label class="tgl"><input type="checkbox" onchange="toast('⚠ Maintenance mode toggled','wrn')"><div class="ttr"></div><div class="tth"></div></label></div>
+      </div>
+      <div class="ss">
+        <h3>M-Pesa / Daraja API Config</h3>
+        <div class="mf"><label>Safaricom Paybill Number</label><input type="text" value="522533" placeholder="Your paybill"></div>
+        <div class="mf"><label>Account Reference</label><input type="text" value="KESTATES" placeholder="e.g. KESTATES"></div>
+        <div class="mf"><label>Daraja Consumer Key</label><input type="password" placeholder="From Safaricom Developer Portal"></div>
+        <div class="mf"><label>Daraja Consumer Secret</label><input type="password" placeholder="From Safaricom Developer Portal"></div>
+        <div class="mf"><label>Callback URL (your backend)</label><input type="text" placeholder="https://your-backend.com/api/mpesa/callback"></div>
+        <button class="ibtn primary" onclick="toast('✓ M-Pesa config saved','mpesa')" style="margin-top:6px">Save M-Pesa Config</button>
+      </div>
+      <div class="ss">
+        <h3>Admin Account</h3>
+        <div class="mf"><label>Display Name</label><input type="text" id="set-name" value="Admin"></div>
+        <div class="mf"><label>Email</label><input type="email" id="set-email" value="admin@kejahub.co.ke"></div>
+        <div class="mf"><label>New Password</label><input type="password" placeholder="Leave blank to keep current"></div>
+        <button class="ibtn primary" onclick="toast('✓ Account settings saved')" style="margin-top:6px">Save Changes</button>
+      </div>
+      <div class="ss" style="border-color:rgba(239,68,68,.2)">
+        <h3 style="color:var(--red)">Danger Zone</h3>
+        <div class="sr"><div class="si"><div class="st" style="color:var(--red)">Delete All Listings</div><div class="sd2">Permanently removes all property listings</div></div>
+          <button class="ibtn" style="color:var(--red);border-color:rgba(239,68,68,.3)" onclick="confirmAct('Delete ALL listings?','This permanently removes every listing.',()=>{listings=[];renderAll();toast('All listings deleted','err')})">Delete All</button></div>
+        <div class="sr"><div class="si"><div class="st" style="color:var(--red)">Delete All Enquiries</div><div class="sd2">Permanently removes all tenant enquiries</div></div>
+          <button class="ibtn" style="color:var(--red);border-color:rgba(239,68,68,.3)" onclick="confirmAct('Delete ALL enquiries?','This permanently removes every enquiry.',()=>{enquiries=[];renderAll();toast('All enquiries deleted','err')})">Delete All</button></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ADD/EDIT LISTING MODAL -->
+<div class="ov" id="ov-listing">
+  <div class="mo">
+    <button class="mc" onclick="closeOv('ov-listing')">✕</button>
+    <h3 id="ml-title">Add Listing</h3>
+    <div class="sub">Fill details — listing goes live on the platform</div>
+    <div class="mf"><label>Property Title *</label><input type="text" id="ml-t" placeholder="e.g. 2-Bed Apartment, Westlands"></div>
+    <div class="mr">
+      <div class="mf"><label>Type</label><select id="ml-type"><option>Apartment</option><option>House</option><option>Studio</option><option>Room / Bedsitter</option></select></div>
+      <div class="mf"><label>Rent/Month (KES) *</label><input type="number" id="ml-price" placeholder="15000"></div>
+    </div>
+    <div class="mr">
+      <div class="mf"><label>County *</label><select id="ml-county"><option value="">Select…</option></select></div>
+      <div class="mf"><label>Town / Area *</label><input type="text" id="ml-area" placeholder="e.g. Westlands"></div>
+    </div>
+    <div class="mf"><label>Full Address *</label><input type="text" id="ml-addr" placeholder="Building, Road, Estate"></div>
+    <div class="mf"><label>Nearest Landmark</label><input type="text" id="ml-land" placeholder="Near..."></div>
+    <div class="mr">
+      <div class="mf"><label>Bedrooms</label><input type="number" id="ml-beds" placeholder="2" min="0"></div>
+      <div class="mf"><label>Bathrooms</label><input type="number" id="ml-baths" placeholder="1" min="1"></div>
+    </div>
+    <div class="mf"><label>Landlord Contact Name *</label><input type="text" id="ml-contact" placeholder="Contact name for tenants"></div>
+    <div class="mf"><label>Contact Phone *</label><input type="tel" id="ml-phone" placeholder="+254 7XX XXX XXX"></div>
+    <div class="mr">
+      <div class="mf"><label>Status</label><select id="ml-status"><option value="vacant">Vacant</option><option value="rented">Rented</option><option value="pending">Pending</option></select></div>
+      <div class="mf"><label>Listing Tier</label><select id="ml-tier"><option value="basic">Basic</option><option value="featured">Featured</option><option value="premium">Premium</option><option value="agency">Agency</option></select></div>
+    </div>
+    <div class="macts">
+      <button class="mbtn gh" onclick="closeOv('ov-listing')">Cancel</button>
+      <button class="mbtn p" onclick="saveListing()">Publish Listing</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD LANDLORD MODAL -->
+<div class="ov" id="ov-landlord">
+  <div class="mo">
+    <button class="mc" onclick="closeOv('ov-landlord')">✕</button>
+    <h3>Add Landlord</h3><div class="sub">Manually register a landlord account</div>
+    <div class="mf"><label>Full Name *</label><input type="text" id="ll-name" placeholder="Full name"></div>
+    <div class="mr">
+      <div class="mf"><label>Phone *</label><input type="tel" id="ll-phone" placeholder="+254 7XX XXX XXX"></div>
+      <div class="mf"><label>Email *</label><input type="email" id="ll-email" placeholder="email@…"></div>
+    </div>
+    <div class="mf"><label>County</label><select id="ll-county"><option value="">Select…</option></select></div>
+    <div class="mf"><label>Account Status</label><select id="ll-status"><option value="active">Active</option><option value="pending">Pending</option><option value="suspended">Suspended</option></select></div>
+    <div class="macts">
+      <button class="mbtn gh" onclick="closeOv('ov-landlord')">Cancel</button>
+      <button class="mbtn p" onclick="saveLandlord()">Add Landlord</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM -->
+<div class="ov" id="ov-confirm">
+  <div class="cbox">
+    <h3 id="c-title">Are you sure?</h3>
+    <p id="c-desc">This cannot be undone.</p>
+    <div class="cacts">
+      <button class="ibtn" onclick="closeOv('ov-confirm')">Cancel</button>
+      <button class="ibtn" style="background:rgba(239,68,68,.1);color:var(--red);border-color:rgba(239,68,68,.3)" id="c-btn" onclick="runConfirm()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// 🔥 FIREBASE CONFIG — paste YOUR config here
+// Firebase Console → Project Settings → Your Apps → Web
+// ══════════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDRVQ6Z1UgPTuR0Wy5vM6xfctF2h8WJqlQ",
+  authDomain: "keja-hub.firebaseapp.com",
+  projectId: "keja-hub",
+  storageBucket: "keja-hub.firebasestorage.app",
+  messagingSenderId: "561454435893",
+  appId: "1:561454435893:web:6ec93f56bcd8379717ab7c",
+  measurementId: "G-HSC7N2E9VK"
+};
+
+// Admin email — change to YOUR admin email
+const ADMIN_EMAIL = "admin@kejahub.co.ke";
+
+// ── State ──
+let db, auth;
+let listings = [], landlords = [], enquiries = [], payments = [];
+let activityLog = [];
+let editId = null, confirmCb = null;
+
+const COUNTIES = ['Baringo','Bomet','Bungoma','Busia','Elgeyo-Marakwet','Embu','Garissa','Homa Bay','Isiolo','Kajiado','Kakamega','Kericho','Kiambu','Kilifi','Kirinyaga','Kisii','Kisumu','Kitui','Kwale','Laikipia','Lamu','Machakos','Makueni','Mandera','Marsabit','Meru','Migori','Mombasa',"Murang'a",'Nairobi','Nakuru','Nandi','Narok','Nyamira','Nyandarua','Nyeri','Samburu','Siaya','Taita-Taveta','Tana River','Tharaka-Nithi','Trans-Nzoia','Turkana','Uasin Gishu','Vihiga','Wajir','West Pokot'];
+
+// ── Init ──
+function boot() {
+  populateCountySelects();
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+    auth = firebase.auth();
+
+    auth.onAuthStateChanged(user => {
+      document.getElementById('loader').classList.add('gone');
+      if (user && user.email === ADMIN_EMAIL) {
+        showDash(user);
+        bindFirestore();
+      } else if (user) {
+        auth.signOut();
+        showLogin();
+        showErr('Access denied. Admin only.');
+      } else {
+        showLogin();
+      }
+    });
+  } catch(e) {
+    console.warn('Firebase not configured — demo mode:', e.message);
+    document.getElementById('loader').classList.add('gone');
+    showLogin();
+  }
+}
+
+function bindFirestore() {
+  // Real-time listings
+  db.collection('listings').orderBy('createdAt','desc').onSnapshot(snap => {
+    listings = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    renderAll();
+  }, () => loadDemo());
+
+  // Real-time landlords (users collection)
+  db.collection('users').orderBy('createdAt','desc').onSnapshot(snap => {
+    landlords = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    renderAll();
+  });
+
+  // Real-time enquiries
+  db.collection('enquiries').orderBy('createdAt','desc').onSnapshot(snap => {
+    enquiries = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    renderAll();
+  });
+
+  // Payments
+  db.collection('payments').orderBy('createdAt','desc').onSnapshot(snap => {
+    payments = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    renderAll();
+  });
+}
+
+// ── Login ──
+async function doLogin() {
+  const email = document.getElementById('ladmin-email').value.trim();
+  const pass = document.getElementById('ladmin-pass').value;
+  const err = document.getElementById('lerr');
+  err.classList.remove('on');
+  if (!email || !pass) { showErr('Enter email and password.'); return; }
+  try {
+    if (db) {
+      await auth.signInWithEmailAndPassword(email, pass);
+    } else {
+      // Demo fallback
+      if (email === 'admin@kejahub.co.ke' && pass === 'Admin@2024') {
+        showDash({ email, displayName:'Admin' });
+        loadDemo();
+      } else { showErr('Invalid credentials. (Demo: admin@kejahub.co.ke / Admin@2024)'); }
+    }
+  } catch(e) {
+    const msgs = {
+      'auth/user-not-found':'No admin account found with this email.',
+      'auth/wrong-password':'Incorrect password.',
+      'auth/invalid-email':'Invalid email address.',
+      'auth/too-many-requests':'Too many attempts. Wait a moment.',
+    };
+    showErr(msgs[e.code] || e.message);
+  }
+}
+function showErr(msg) { const e=document.getElementById('lerr'); e.textContent='⚠ '+msg; e.classList.add('on'); }
+function showLogin() { document.getElementById('login').classList.add('show'); document.getElementById('dash').classList.remove('show'); }
+function showDash(user) {
+  document.getElementById('login').classList.remove('show');
+  document.getElementById('dash').classList.add('show');
+  document.getElementById('aav').textContent = (user.displayName||user.email||'A')[0].toUpperCase();
+  document.getElementById('aname').textContent = user.displayName || user.email.split('@')[0];
+  startClock();
+}
+function doSignOut() {
+  if (!confirm('Sign out of admin panel?')) return;
+  if (auth) auth.signOut();
+  showLogin();
+}
+
+// ── Demo Data ──
+function loadDemo() {
+  toast('⚠ Demo mode — add Firebase config to go live','wrn');
+  listings = [
+    {id:'d1',title:'Modern 2-Bed, Westlands',type:'Apartment',price:18000,county:'Nairobi',area:'Westlands',address:'The Wings Apts, Waiyaki Way',landmark:'Near ABC Place',beds:2,baths:1,contact:'Mrs. Wanjiku',phone:'+254 722 111 222',status:'vacant',tier:'featured',paymentAmount:1200,createdAt:'2024-05-28'},
+    {id:'d2',title:'3-Bed House, Ruaka',type:'House',price:35000,county:'Kiambu',area:'Ruaka',address:'Ruaka Estate',landmark:'Near Quickmart',beds:3,baths:2,contact:'Mr. Kamau',phone:'+254 733 222 333',status:'vacant',tier:'basic',paymentAmount:500,createdAt:'2024-05-27'},
+    {id:'d3',title:'Bedsitter, CBD',type:'Room / Bedsitter',price:5500,county:'Nairobi',area:'CBD',address:'Kirinyaga Road',beds:1,baths:1,contact:'Aisha Odhiambo',phone:'+254 710 333 444',status:'rented',tier:'basic',paymentAmount:500,createdAt:'2024-05-26'},
+    {id:'d4',title:'Studio, Kilimani',type:'Studio',price:22000,county:'Nairobi',area:'Kilimani',address:'Elgeyo Marakwet Rd',beds:1,baths:1,contact:'Brian Mwangi',phone:'+254 720 555 666',status:'vacant',tier:'featured',paymentAmount:1200,createdAt:'2024-05-25'},
+    {id:'d5',title:'4-Bed Villa, Nyali',type:'House',price:120000,county:'Mombasa',area:'Nyali',address:'Links Road',beds:4,baths:3,contact:'Fatuma Ali',phone:'+254 741 777 888',status:'vacant',tier:'premium',paymentAmount:2500,createdAt:'2024-05-24'},
+  ];
+  landlords = [
+    {id:'l1',name:'Mrs. Wanjiku',phone:'+254 722 111 222',email:'wanjiku@gmail.com',county:'Nairobi',status:'active',createdAt:'2024-05-20'},
+    {id:'l2',name:'Mr. Kamau',phone:'+254 733 222 333',email:'kamau@gmail.com',county:'Kiambu',status:'active',createdAt:'2024-05-18'},
+    {id:'l3',name:'Aisha Odhiambo',phone:'+254 710 333 444',email:'aisha@gmail.com',county:'Nairobi',status:'active',createdAt:'2024-05-15'},
+    {id:'l4',name:'Brian Mwangi',phone:'+254 720 555 666',email:'brian@gmail.com',county:'Nairobi',status:'pending',createdAt:'2024-05-25'},
+    {id:'l5',name:'Fatuma Ali',phone:'+254 741 777 888',email:'fatuma@gmail.com',county:'Mombasa',status:'suspended',createdAt:'2024-05-10'},
+  ];
+  enquiries = [
+    {id:'e1',tenantName:'Emmanuel Otieno',tenantPhone:'+254 700 123 456',listingId:'d1',message:'I am interested, when can I view?',createdAt:'2024-05-28',status:'new'},
+    {id:'e2',tenantName:'Grace Njeri',tenantPhone:'+254 711 234 567',listingId:'d2',message:'Is the house still available?',createdAt:'2024-05-28',status:'responded'},
+    {id:'e3',tenantName:'David Ochieng',tenantPhone:'+254 722 345 678',listingId:'d4',message:'Please send more photos.',createdAt:'2024-05-27',status:'new'},
+  ];
+  payments = [
+    {id:'p1',landlordName:'Mrs. Wanjiku',phone:'+254 722 111 222',amount:1200,tier:'featured',property:'Modern 2-Bed, Westlands',createdAt:'2024-05-28',status:'paid'},
+    {id:'p2',landlordName:'Mr. Kamau',phone:'+254 733 222 333',amount:500,tier:'basic',property:'3-Bed House, Ruaka',createdAt:'2024-05-27',status:'paid'},
+    {id:'p3',landlordName:'Brian Mwangi',phone:'+254 720 555 666',amount:1200,tier:'featured',property:'Studio, Kilimani',createdAt:'2024-05-25',status:'paid'},
+    {id:'p4',landlordName:'Fatuma Ali',phone:'+254 741 777 888',amount:2500,tier:'premium',property:'4-Bed Villa, Nyali',createdAt:'2024-05-24',status:'paid'},
+  ];
+  activityLog = [
+    {dot:'g',text:'New listing: Modern 2-Bed Apartment, Westlands',time:'2 mins ago'},
+    {dot:'m',text:'M-Pesa KES 1,200 received from Mrs. Wanjiku',time:'5 mins ago'},
+    {dot:'l',text:'New enquiry from Emmanuel Otieno',time:'10 mins ago'},
+    {dot:'b',text:'Landlord Brian Mwangi registered',time:'30 mins ago'},
+    {dot:'r',text:'Listing: Bedsitter CBD → Rented',time:'1 hour ago'},
+  ];
+  renderAll();
+}
+
+// ── Render All ──
+function renderAll() {
+  updateStats();
+  renderOverview();
+  renderListingsTable();
+  renderLandlordsTable();
+  renderEnquiriesTable();
+  renderPaymentsTable();
+  renderActivity();
+  updateBadges();
+}
+
+function updateStats() {
+  const vacant = listings.filter(l=>l.status==='vacant').length;
+  const totalRev = payments.reduce((s,p)=>s+(p.amount||0),0);
+  set('sv-listings', listings.length);
+  set('sv-vacant', vacant);
+  set('sv-landlords', landlords.length);
+  set('sv-enquiries', enquiries.length);
+  set('sv-revenue', 'KES '+totalRev.toLocaleString());
+  set('rev-total','KES '+totalRev.toLocaleString());
+  set('rev-month','KES '+payments.filter(p=>p.createdAt&&p.createdAt.startsWith('2024-05')).reduce((s,p)=>s+(p.amount||0),0).toLocaleString());
+  set('rev-txns', payments.length);
+  set('rev-avg', payments.length ? 'KES '+(Math.round(totalRev/payments.length)).toLocaleString() : 'KES 0');
+  // Analytics
+  const fillRate = listings.length ? Math.round((listings.filter(l=>l.status==='rented').length/listings.length)*100) : 0;
+  set('an-fill', fillRate+'%');
+  const counties = [...new Set(listings.map(l=>l.county).filter(Boolean))].length;
+  set('an-counties', counties);
+  const conv = listings.length ? Math.round((enquiries.length/listings.length)*10)/10 : 0;
+  set('an-conv', conv+'x');
+  // Revenue chart
+  const rvals = [0,0,500,1200,2500,0,1200];
+  const rmax = Math.max(...rvals,1);
+  set('rev-chart', rvals.map((v,i)=>`<div class="bar ${i===4?'hi':'lo'}" style="height:${Math.round(v/rmax*100)}%"></div>`).join(''));
+  // Enquiry chart
+  const evals = [3,5,2,7,9,4,6];
+  const emax = Math.max(...evals);
+  set('enq-chart', evals.map((v,i)=>`<div class="bar ${i===4?'hi':'lo'}" style="height:${Math.round(v/emax*100)}%"></div>`).join(''));
+  // County breakdown
+  const cmap = {};
+  listings.forEach(l=>{ if(l.county) cmap[l.county]=(cmap[l.county]||0)+1; });
+  const sorted = Object.entries(cmap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  set('county-breakdown', sorted.map(([c,n])=>`
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px"><span>${c}</span><span style="color:var(--gold);font-family:'IBM Plex Mono',monospace">${n}</span></div>
+      <div style="background:var(--border);border-radius:50px;height:5px"><div style="background:var(--gold);border-radius:50px;height:5px;width:${Math.round(n/listings.length*100)}%;transition:width .5s"></div></div>
+    </div>`).join(''));
+  // Type breakdown
+  const types = ['Apartment','House','Studio','Room / Bedsitter'];
+  set('type-breakdown', types.map(t=>{const n=listings.filter(l=>l.type===t).length; return `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px"><span>${t}</span><span style="color:var(--gold);font-family:'IBM Plex Mono',monospace">${n}</span></div>
+      <div style="background:var(--border);border-radius:50px;height:5px"><div style="background:var(--gold);border-radius:50px;height:5px;width:${listings.length?Math.round(n/listings.length*100):0}%;transition:width .5s"></div></div>
+    </div>`}).join(''));
+  // Tier breakdown
+  const tiers = ['basic','featured','premium','agency'];
+  set('tier-breakdown', tiers.map(t=>{const n=listings.filter(l=>l.tier===t).length; return `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px"><span style="text-transform:capitalize">${t}</span><span style="color:var(--mpesa);font-family:'IBM Plex Mono',monospace">${n}</span></div>
+      <div style="background:var(--border);border-radius:50px;height:5px"><div style="background:var(--mpesa);border-radius:50px;height:5px;width:${listings.length?Math.round(n/listings.length*100):0}%;transition:width .5s"></div></div>
+    </div>`}).join(''));
+}
+
+function updateBadges() {
+  const p = listings.filter(l=>l.status==='pending').length;
+  const enb = document.getElementById('nb-pending');
+  enb.textContent = p; enb.style.display = p ? 'inline' : 'none';
+  const ne = enquiries.filter(e=>e.status==='new').length;
+  const enq = document.getElementById('nb-enq');
+  enq.textContent = ne; enq.style.display = ne ? 'inline' : 'none';
+}
+
+function bx(s) { return `<span class="bx ${s}">● ${s}</span>`; }
+
+function renderOverview() {
+  document.getElementById('ov-table').innerHTML = listings.slice(0,5).map(l=>`<tr>
+    <td><strong>${l.title}</strong><br><span style="font-size:.72rem;color:var(--muted)">${l.address||''}</span></td>
+    <td style="font-size:.78rem">${l.county||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--gold)">KES ${Number(l.price||0).toLocaleString()}</td>
+    <td>${bx(l.status||'vacant')}</td>
+    <td><span style="text-transform:capitalize;font-size:.75rem;color:var(--muted)">${l.tier||'basic'}</span></td>
+    <td><div class="acts">
+      <button class="ab" onclick="editListing('${l.id}')">✏ Edit</button>
+      <button class="ab r" onclick="delListing('${l.id}')">🗑</button>
+    </div></td>
+  </tr>`).join('') || emptyRow(6,'No listings yet');
+}
+
+function renderListingsTable() {
+  document.getElementById('ltable').innerHTML = listings.map((l,i)=>`<tr>
+    <td style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:.75rem">${i+1}</td>
+    <td><strong>${l.title}</strong></td>
+    <td style="font-size:.78rem">${l.type||'—'}</td>
+    <td style="font-size:.78rem">${l.area||''}, ${l.county||''}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--gold)">KES ${Number(l.price||0).toLocaleString()}</td>
+    <td>${l.beds||'—'} 🛏</td>
+    <td>${bx(l.status||'vacant')}</td>
+    <td><span style="text-transform:capitalize;font-size:.73rem">${l.tier||'basic'}</span></td>
+    <td style="font-size:.8rem">${l.contact||'—'}</td>
+    <td><div class="acts">
+      <button class="ab" onclick="editListing('${l.id}')">✏ Edit</button>
+      <button class="ab g" onclick="toggleStatus('${l.id}')">⇄</button>
+      <button class="ab r" onclick="delListing('${l.id}')">🗑</button>
+    </div></td>
+  </tr>`).join('') || emptyRow(10,'No listings yet. Click + New Listing to add one.');
+}
+
+function renderLandlordsTable() {
+  document.getElementById('lltable').innerHTML = landlords.map((ll,i)=>`<tr>
+    <td style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:.75rem">${i+1}</td>
+    <td><strong>${ll.name||ll.displayName||'—'}</strong></td>
+    <td style="font-family:'IBM Plex Mono',monospace;font-size:.77rem">${ll.phone||'—'}</td>
+    <td style="font-size:.78rem">${ll.email||'—'}</td>
+    <td>${ll.county||'—'}</td>
+    <td>${listings.filter(l=>l.landlordEmail===ll.email||l.contact===ll.name).length}</td>
+    <td>${bx(ll.status||'active')}</td>
+    <td style="font-size:.73rem;color:var(--muted)">${ll.createdAt ? String(ll.createdAt).substring(0,10) : '—'}</td>
+    <td><div class="acts">
+      <button class="ab g" onclick="setLLStatus('${ll.id}','active')">✓ Approve</button>
+      <button class="ab r" onclick="setLLStatus('${ll.id}','suspended')">⊘ Suspend</button>
+      <button class="ab r" onclick="delLandlord('${ll.id}')">🗑</button>
+    </div></td>
+  </tr>`).join('') || emptyRow(9,'No landlords registered yet.');
+}
+
+function renderEnquiriesTable() {
+  document.getElementById('etable').innerHTML = enquiries.map((e,i)=>`<tr>
+    <td style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:.75rem">${i+1}</td>
+    <td><strong>${e.tenantName||'—'}</strong></td>
+    <td style="font-family:'IBM Plex Mono',monospace;font-size:.77rem">${e.tenantPhone||'—'}</td>
+    <td style="font-size:.78rem">${listings.find(l=>l.id===e.listingId)?.title || e.listingId||'—'}</td>
+    <td style="font-size:.77rem;color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.message||'—'}</td>
+    <td style="font-size:.73rem;font-family:'IBM Plex Mono',monospace">${String(e.createdAt||'').substring(0,10)}</td>
+    <td>${bx(e.status||'new')}</td>
+    <td><div class="acts">
+      <button class="ab b" onclick="markEnq('${e.id}','responded')">✓ Done</button>
+      <button class="ab r" onclick="delEnq('${e.id}')">🗑</button>
+    </div></td>
+  </tr>`).join('') || emptyRow(8,'No enquiries yet.');
+}
+
+function renderPaymentsTable() {
+  document.getElementById('ptable').innerHTML = payments.map((p,i)=>`<tr>
+    <td style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:.75rem">${i+1}</td>
+    <td><strong>${p.landlordName||'—'}</strong></td>
+    <td style="font-family:'IBM Plex Mono',monospace;font-size:.77rem">${p.phone||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--mpesa);font-weight:700">KES ${Number(p.amount||0).toLocaleString()}</td>
+    <td style="text-transform:capitalize">${p.tier||'basic'}</td>
+    <td style="font-size:.78rem">${p.property||'—'}</td>
+    <td style="font-size:.73rem;font-family:'IBM Plex Mono',monospace">${String(p.createdAt||'').substring(0,10)}</td>
+    <td>${bx(p.status||'paid')}</td>
+  </tr>`).join('') || emptyRow(8,'No payment records yet.');
+}
+
+function renderActivity() {
+  document.getElementById('activity-feed').innerHTML = activityLog.slice(0,8).map(a=>`
+    <div class="aitem"><div class="adot ${a.dot}"></div>
+    <div><div class="atxt">${a.text}</div><div class="atime">${a.time}</div></div></div>`).join('');
+}
+
+function emptyRow(cols, msg) {
+  return `<tr class="empty-row"><td colspan="${cols}">${msg}</td></tr>`;
+}
+
+// ── CRUD ──
+function openAddListing() {
+  editId = null;
+  document.getElementById('ml-title').textContent = 'Add Listing';
+  ['ml-t','ml-price','ml-area','ml-addr','ml-land','ml-beds','ml-baths','ml-contact','ml-phone'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('ml-status').value = 'vacant';
+  document.getElementById('ml-tier').value = 'basic';
+  openOv('ov-listing');
+}
+
+function editListing(id) {
+  const l = listings.find(x=>x.id===id); if(!l) return;
+  editId = id;
+  document.getElementById('ml-title').textContent = 'Edit Listing';
+  document.getElementById('ml-t').value = l.title||'';
+  document.getElementById('ml-type').value = l.type||'Apartment';
+  document.getElementById('ml-price').value = l.price||'';
+  document.getElementById('ml-county').value = l.county||'';
+  document.getElementById('ml-area').value = l.area||'';
+  document.getElementById('ml-addr').value = l.address||'';
+  document.getElementById('ml-land').value = l.landmark||'';
+  document.getElementById('ml-beds').value = l.beds||'';
+  document.getElementById('ml-baths').value = l.baths||'';
+  document.getElementById('ml-contact').value = l.contact||'';
+  document.getElementById('ml-phone').value = l.phone||'';
+  document.getElementById('ml-status').value = l.status||'vacant';
+  document.getElementById('ml-tier').value = l.tier||'basic';
+  openOv('ov-listing');
+}
+
+async function saveListing() {
+  const title = document.getElementById('ml-t').value.trim();
+  const price = parseInt(document.getElementById('ml-price').value);
+  const county = document.getElementById('ml-county').value;
+  const area = document.getElementById('ml-area').value.trim();
+  const addr = document.getElementById('ml-addr').value.trim();
+  const contact = document.getElementById('ml-contact').value.trim();
+  const phone = document.getElementById('ml-phone').value.trim();
+  if (!title||!price||!county||!area||!addr||!contact||!phone) { toast('⚠ Fill all required fields','wrn'); return; }
+  const obj = {
+    title, price, county, area, address:addr,
+    landmark: document.getElementById('ml-land').value.trim(),
+    type: document.getElementById('ml-type').value,
+    beds: parseInt(document.getElementById('ml-beds').value)||1,
+    baths: parseInt(document.getElementById('ml-baths').value)||1,
+    contact, phone,
+    status: document.getElementById('ml-status').value,
+    tier: document.getElementById('ml-tier').value,
+    featured: ['featured','premium','agency'].includes(document.getElementById('ml-tier').value),
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    if (db && db.collection) {
+      if (editId) {
+        await db.collection('listings').doc(editId).update(obj);
+      } else {
+        obj.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        await db.collection('listings').add(obj);
+      }
+    } else {
+      if (editId) {
+        const idx = listings.findIndex(l=>l.id===editId);
+        listings[idx] = { ...listings[idx], ...obj };
+      } else {
+        listings.unshift({ id:'n'+Date.now(), ...obj, createdAt:new Date().toISOString() });
+      }
+      activityLog.unshift({dot:'g',text:(editId?'Updated':'New listing: ')+title,time:'just now'});
+      renderAll();
+    }
+    closeOv('ov-listing');
+    toast(editId ? '✓ Listing updated' : '✓ Listing published');
+    editId = null;
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function toggleStatus(id) {
+  const l = listings.find(x=>x.id===id); if(!l) return;
+  const cycle = {vacant:'rented',rented:'pending',pending:'vacant'};
+  const newStatus = cycle[l.status]||'vacant';
+  try {
+    if (db && db.collection) {
+      await db.collection('listings').doc(id).update({ status:newStatus });
+    } else {
+      l.status = newStatus; activityLog.unshift({dot:'b',text:`${l.title} → ${newStatus}`,time:'just now'}); renderAll();
+    }
+    toast('✓ Status: '+newStatus);
+  } catch(e) { toast('Error','err'); }
+}
+
+function delListing(id) {
+  const l = listings.find(x=>x.id===id);
+  confirmAct('Delete this listing?',`"${l?.title}" will be removed from the platform.`, async ()=>{
+    try {
+      if (db && db.collection) { await db.collection('listings').doc(id).delete(); }
+      else { listings = listings.filter(x=>x.id!==id); activityLog.unshift({dot:'r',text:'Deleted: '+(l?.title||id),time:'just now'}); renderAll(); }
+      toast('✓ Listing deleted');
+    } catch(e) { toast('Error','err'); }
+  });
+}
+
+function openAddLandlord() {
+  ['ll-name','ll-phone','ll-email'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ll-county').value='';
+  document.getElementById('ll-status').value='active';
+  openOv('ov-landlord');
+}
+
+async function saveLandlord() {
+  const name = document.getElementById('ll-name').value.trim();
+  const phone = document.getElementById('ll-phone').value.trim();
+  const email = document.getElementById('ll-email').value.trim();
+  if (!name||!phone||!email) { toast('⚠ Fill required fields','wrn'); return; }
+  const obj = { name, phone, email, county:document.getElementById('ll-county').value, status:document.getElementById('ll-status').value, createdAt:new Date().toISOString() };
+  try {
+    if (db && db.collection) { await db.collection('users').add(obj); }
+    else { landlords.push({id:'l'+Date.now(),...obj}); activityLog.unshift({dot:'b',text:'Landlord added: '+name,time:'just now'}); renderAll(); }
+    closeOv('ov-landlord'); toast('✓ Landlord added');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function setLLStatus(id, status) {
+  const ll = landlords.find(x=>x.id===id); if(!ll) return;
+  try {
+    if (db && db.collection) { await db.collection('users').doc(id).update({ status }); }
+    else { ll.status = status; activityLog.unshift({dot:status==='active'?'l':'r',text:`${ll.name} → ${status}`,time:'just now'}); renderAll(); }
+    toast('✓ Landlord '+status);
+  } catch(e) { toast('Error','err'); }
+}
+
+function delLandlord(id) {
+  const ll = landlords.find(x=>x.id===id);
+  confirmAct('Delete landlord?',`${ll?.name} will be removed.`, async ()=>{
+    try {
+      if (db && db.collection) { await db.collection('users').doc(id).delete(); }
+      else { landlords = landlords.filter(x=>x.id!==id); renderAll(); }
+      toast('✓ Landlord removed');
+    } catch(e) { toast('Error','err'); }
+  });
+}
+
+async function markEnq(id, status) {
+  try {
+    if (db && db.collection) { await db.collection('enquiries').doc(id).update({ status }); }
+    else { const e=enquiries.find(x=>x.id===id); if(e) e.status=status; renderAll(); }
+    toast('✓ Enquiry marked as '+status);
+  } catch(e) { toast('Error','err'); }
+}
+
+function delEnq(id) {
+  confirmAct('Delete this enquiry?','It will be permanently removed.',async ()=>{
+    try {
+      if (db && db.collection) { await db.collection('enquiries').doc(id).delete(); }
+      else { enquiries=enquiries.filter(x=>x.id!==id); renderAll(); }
+      toast('✓ Enquiry deleted');
+    } catch(e) { toast('Error','err'); }
+  });
+}
+
+// ── UI helpers ──
+function showPg(name, btn) {
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
+  document.getElementById('pg-'+name).classList.add('on');
+  btn.classList.add('on');
+  if (name==='analytics') updateStats();
+}
+function openOv(id) { document.getElementById(id).classList.add('open'); }
+function closeOv(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.ov').forEach(o=>{ o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); }); });
+
+function confirmAct(title, desc, cb) {
+  document.getElementById('c-title').textContent = title;
+  document.getElementById('c-desc').textContent = desc;
+  confirmCb = cb; openOv('ov-confirm');
+}
+function runConfirm() { closeOv('ov-confirm'); if(confirmCb) confirmCb(); confirmCb=null; }
+
+function ftable(input, tableId) {
+  const q = input.value.toLowerCase();
+  document.querySelectorAll(`#${tableId} tr:not(:first-child)`).forEach(tr=>{
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+let toastTmr;
+function toast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'on'+(type?' '+type:'');
+  clearTimeout(toastTmr); toastTmr = setTimeout(()=>t.className='',3500);
+}
+
+function set(id, html) {
+  const el = document.getElementById(id); if(el) el.innerHTML = html;
+}
+
+function startClock() {
+  const el = document.getElementById('clock');
+  if (!el) return;
+  const tick = () => el.textContent = new Date().toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  tick(); setInterval(tick,1000);
+}
+
+function populateCountySelects() {
+  ['ml-county','ll-county'].forEach(id=>{
+    const sel = document.getElementById(id); if(!sel) return;
+    COUNTIES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+  });
+}
+
+window.addEventListener('DOMContentLoaded', boot);
+</script>
+</body>
+</html>
