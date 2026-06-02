@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keja Hub — Find & List Properties Across Kenya</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- ✅ FIREBASE SDK v9 (compat mode — works in plain HTML) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --forest:#0D2B1A;--green:#1A5C35;--lime:#2ECC71;--gold:#D4A017;
+  --cream:#FAF7F0;--sand:#F0E8D5;--brown:#5C3A1E;--dark:#0A0A0A;
+  --text:#1A1A1A;--muted:#6B7B6E;--white:#FFFFFF;--red:#C0392B;--mpesa:#00A651;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:var(--text);overflow-x:hidden}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;
+  background:var(--forest);color:#fff;padding:12px 24px;border-radius:50px;
+  font-size:.85rem;font-weight:600;display:none;box-shadow:0 8px 32px rgba(0,0,0,.3);
+  white-space:nowrap;}
+#toast.show{display:block;animation:slideUp .3s ease}
+#toast.error{background:var(--red)}
+#toast.mpesa{background:var(--mpesa)}
+
+/* ── LOADER ── */
+#global-loader{position:fixed;inset:0;background:var(--forest);z-index:9998;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  transition:opacity .5s ease}
+#global-loader.hidden{opacity:0;pointer-events:none}
+.loader-logo{font-family:'Fraunces',serif;font-size:2.2rem;font-weight:900;color:#fff;letter-spacing:-1px}
+.loader-logo span{color:var(--lime)}
+.loader-bar{width:200px;height:3px;background:rgba(255,255,255,.2);border-radius:50px;overflow:hidden}
+.loader-fill{height:100%;background:var(--lime);border-radius:50px;animation:loadFill 1.5s ease forwards}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 48px;
+  background:rgba(250,247,240,0.95);backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(26,92,53,.1);}
+.nav-logo{font-family:'Fraunces',serif;font-size:1.5rem;font-weight:900;
+  color:var(--forest);letter-spacing:-0.5px;cursor:pointer}
+.nav-logo span{color:var(--lime)}
+.nav-links{display:flex;align-items:center;gap:28px}
+.nav-links a{text-decoration:none;color:var(--muted);font-size:.88rem;font-weight:500;transition:.2s;cursor:pointer}
+.nav-links a:hover{color:var(--forest)}
+.nav-auth{display:flex;gap:10px;align-items:center}
+.btn-outline{padding:9px 22px;border:2px solid var(--forest);border-radius:50px;
+  background:none;color:var(--forest);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.85rem;font-weight:600;cursor:pointer;transition:.2s}
+.btn-outline:hover{background:var(--forest);color:#fff}
+.btn-solid{padding:9px 22px;border:none;border-radius:50px;
+  background:var(--green);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.85rem;font-weight:600;cursor:pointer;transition:.2s;
+  box-shadow:0 4px 16px rgba(26,92,53,.3)}
+.btn-solid:hover{background:var(--forest);transform:translateY(-1px)}
+.user-pill{display:flex;align-items:center;gap:8px;background:var(--sand);
+  border-radius:50px;padding:6px 16px 6px 8px;cursor:pointer}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--green);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:.8rem;font-weight:700}
+.user-name{font-size:.83rem;font-weight:600;color:var(--forest)}
+#nav-user{display:none}
+#nav-guest{display:flex;gap:10px}
+
+/* ── PAGES ── */
+.page{display:none;min-height:100vh;padding-top:72px}
+.page.active{display:block}
+
+/* ── HERO ── */
+#page-home{background:var(--cream)}
+.hero{min-height:calc(100vh - 72px);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+  padding:60px 24px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 80% 60% at 50% 100%,rgba(26,92,53,.08) 0%,transparent 70%),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231A5C35' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.hero-kag{display:inline-flex;align-items:center;gap:8px;
+  background:var(--forest);color:#fff;padding:6px 18px;border-radius:50px;
+  font-size:.75rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  margin-bottom:28px;animation:fadeUp .6s ease both}
+.hero-kag .dot{width:6px;height:6px;border-radius:50%;background:var(--lime);animation:pulse 2s infinite}
+.hero-h1{font-family:'Fraunces',serif;font-size:clamp(2.6rem,6vw,5rem);
+  font-weight:900;line-height:1.05;max-width:760px;
+  animation:fadeUp .7s .1s ease both}
+.hero-h1 em{color:var(--green);font-style:italic}
+.hero-sub{margin-top:20px;max-width:500px;font-size:1.05rem;line-height:1.75;
+  color:var(--muted);animation:fadeUp .7s .2s ease both}
+.hero-ctas{margin-top:36px;display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+  animation:fadeUp .7s .3s ease both}
+.btn-hero-p{padding:16px 36px;border:none;border-radius:50px;
+  background:var(--green);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:1rem;font-weight:700;cursor:pointer;transition:.2s;
+  box-shadow:0 8px 28px rgba(26,92,53,.35)}
+.btn-hero-p:hover{background:var(--forest);transform:translateY(-2px);box-shadow:0 12px 36px rgba(26,92,53,.4)}
+.btn-hero-s{padding:16px 36px;border:2px solid rgba(26,43,26,.2);border-radius:50px;
+  background:transparent;color:var(--forest);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:1rem;font-weight:700;cursor:pointer;transition:.2s}
+.btn-hero-s:hover{border-color:var(--forest);background:rgba(13,43,26,.05)}
+
+.hero-stats{margin-top:56px;display:flex;gap:48px;flex-wrap:wrap;justify-content:center;
+  animation:fadeUp .7s .4s ease both}
+.hstat .n{font-family:'Fraunces',serif;font-size:2.2rem;font-weight:900;color:var(--green)}
+.hstat .l{font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:2px}
+
+/* COUNTIES STRIP */
+.counties-strip{background:var(--forest);padding:14px 0;overflow:hidden}
+.counties-inner{display:flex;gap:32px;animation:scrollLeft 20s linear infinite;white-space:nowrap}
+.county-tag{color:rgba(255,255,255,.7);font-size:.8rem;font-weight:500;padding:0 8px}
+.county-dot{color:var(--lime);font-size:.6rem}
+
+/* ── LISTINGS SECTION ── */
+.listings-wrap{max-width:1200px;margin:0 auto;padding:80px 24px}
+.sec-label{font-size:.72rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:var(--green);margin-bottom:10px}
+.sec-title{font-family:'Fraunces',serif;font-size:2.4rem;font-weight:900;
+  line-height:1.15;max-width:480px;margin-bottom:40px}
+
+.filters-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:32px;align-items:center}
+.filter-input{padding:11px 18px;border:2px solid rgba(26,92,53,.15);border-radius:50px;
+  background:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-size:.88rem;
+  outline:none;color:var(--text);transition:.2s}
+.filter-input:focus{border-color:var(--green)}
+.filter-input.wide{min-width:220px}
+
+.listings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px}
+.prop-card{background:#fff;border-radius:20px;overflow:hidden;
+  border:1px solid rgba(26,92,53,.08);transition:.25s;cursor:pointer}
+.prop-card:hover{transform:translateY(-6px);box-shadow:0 20px 48px rgba(13,43,26,.12)}
+.card-header{height:190px;position:relative;display:flex;align-items:center;
+  justify-content:center;font-size:3.5rem}
+.card-header.apt{background:linear-gradient(135deg,#C8E6C9,#81C784)}
+.card-header.house{background:linear-gradient(135deg,#DCEDC8,#AED581)}
+.card-header.studio{background:linear-gradient(135deg,#B2EBF2,#80DEEA)}
+.card-header.room{background:linear-gradient(135deg,#FFE0B2,#FFCC80)}
+.vacant-pill{position:absolute;top:12px;right:12px;background:var(--lime);color:#fff;
+  font-size:.68rem;font-weight:700;padding:4px 12px;border-radius:50px;letter-spacing:.5px}
+.price-pill{position:absolute;bottom:12px;left:12px;background:var(--forest);color:#fff;
+  font-family:'Fraunces',serif;font-size:1rem;font-weight:700;
+  padding:5px 14px;border-radius:50px}
+.card-body{padding:18px 20px 20px}
+.card-title{font-weight:700;font-size:.98rem;margin-bottom:5px}
+.card-loc{font-size:.82rem;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:4px}
+.card-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.chip{background:var(--sand);color:var(--brown);font-size:.72rem;font-weight:600;
+  padding:3px 10px;border-radius:50px}
+.card-landlord{display:flex;align-items:center;gap:10px;padding-top:14px;
+  border-top:1px solid rgba(26,92,53,.08)}
+.ll-avatar{width:32px;height:32px;border-radius:50%;background:var(--green);
+  display:flex;align-items:center;justify-content:center;color:#fff;
+  font-size:.85rem;font-weight:700;flex-shrink:0}
+.ll-info{flex:1;min-width:0}
+.ll-name{font-size:.82rem;font-weight:700;color:var(--forest)}
+.ll-phone{font-size:.75rem;color:var(--muted)}
+.btn-enquire{width:100%;margin-top:14px;padding:11px;border:none;border-radius:12px;
+  background:var(--forest);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.88rem;font-weight:700;cursor:pointer;transition:.2s}
+.btn-enquire:hover{background:var(--green)}
+
+.empty{text-align:center;padding:60px;color:var(--muted);grid-column:1/-1}
+.empty .ei{font-size:3rem;margin-bottom:12px}
+.loading-grid{text-align:center;padding:60px;color:var(--muted);grid-column:1/-1;
+  font-size:.88rem;animation:pulse 1.5s infinite}
+
+/* ── LANDLORD PORTAL ── */
+#page-landlord{background:var(--cream)}
+.portal-wrap{max-width:600px;margin:0 auto;padding:80px 24px}
+.portal-tabs{display:flex;background:var(--sand);border-radius:50px;padding:4px;margin-bottom:32px}
+.ptab{flex:1;padding:11px;border:none;border-radius:50px;font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.88rem;font-weight:600;cursor:pointer;transition:.2s;
+  background:none;color:var(--muted)}
+.ptab.active{background:#fff;color:var(--forest);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+
+.pcard{background:#fff;border-radius:24px;padding:36px;
+  border:1px solid rgba(26,92,53,.1);box-shadow:0 4px 24px rgba(13,43,26,.06)}
+.pcard h2{font-family:'Fraunces',serif;font-size:1.8rem;font-weight:900;margin-bottom:6px}
+.pcard .sub{font-size:.85rem;color:var(--muted);margin-bottom:28px}
+
+.pfield{margin-bottom:18px}
+.pfield label{display:block;font-size:.78rem;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.pfield input,.pfield select,.pfield textarea{
+  width:100%;padding:13px 16px;border:2px solid rgba(26,92,53,.15);
+  border-radius:12px;background:var(--cream);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.92rem;outline:none;transition:.2s;color:var(--text)}
+.pfield input:focus,.pfield select:focus,.pfield textarea:focus{
+  border-color:var(--green);background:#fff}
+.pfield textarea{resize:vertical;min-height:90px}
+.prow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+.amenity-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.amenity{padding:9px;border-radius:10px;border:2px solid rgba(26,92,53,.12);
+  font-size:.78rem;font-weight:600;cursor:pointer;text-align:center;
+  transition:.15s;background:var(--cream)}
+.amenity.on{background:var(--green);color:#fff;border-color:var(--green)}
+
+/* MPESA SECTION */
+.mpesa-box{background:linear-gradient(135deg,var(--mpesa),#00843D);
+  border-radius:18px;padding:24px;margin-bottom:20px;color:#fff}
+.mpesa-box h3{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:700;
+  display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.mpesa-box p{font-size:.83rem;opacity:.9;line-height:1.6;margin-bottom:16px}
+.mpesa-tiers{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mtier{background:rgba(255,255,255,.15);border-radius:12px;padding:12px;
+  border:1px solid rgba(255,255,255,.2);cursor:pointer;transition:.2s}
+.mtier:hover,.mtier.selected{background:rgba(255,255,255,.25);border-color:#fff}
+.mtier .plan{font-size:.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.8}
+.mtier .price{font-family:'Fraunces',serif;font-size:1.3rem;font-weight:900;margin:4px 0}
+.mtier .desc{font-size:.74rem;opacity:.8}
+.mpesa-num{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);
+  border-radius:10px;padding:12px 14px;margin-top:14px}
+.mpesa-num label{font-size:.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  opacity:.7;display:block;margin-bottom:6px}
+.mpesa-num input{width:100%;background:none;border:none;color:#fff;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:1rem;font-weight:600;outline:none}
+.mpesa-num input::placeholder{color:rgba(255,255,255,.5)}
+.btn-mpesa{width:100%;margin-top:12px;padding:13px;border:none;border-radius:12px;
+  background:#fff;color:var(--mpesa);font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.92rem;font-weight:700;cursor:pointer;transition:.2s;letter-spacing:.3px}
+.btn-mpesa:hover{background:var(--forest);color:#fff}
+.mpesa-status{font-size:.78rem;text-align:center;margin-top:10px;opacity:.8;min-height:20px}
+
+.btn-submit{width:100%;padding:15px;border:none;border-radius:14px;
+  background:var(--green);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:.98rem;font-weight:700;cursor:pointer;transition:.2s;margin-top:8px;
+  box-shadow:0 8px 24px rgba(26,92,53,.25)}
+.btn-submit:hover{background:var(--forest);transform:translateY(-1px)}
+.btn-submit:disabled{background:var(--muted);cursor:not-allowed;transform:none}
+
+/* ── AUTH MODAL ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(13,43,26,.6);
+  z-index:500;align-items:center;justify-content:center;padding:20px}
+.overlay.open{display:flex;animation:fadeIn .2s ease}
+.amodal{background:#fff;border-radius:24px;padding:36px;max-width:420px;width:100%;
+  position:relative;animation:scaleIn .25s ease;max-height:90vh;overflow-y:auto}
+.amodal h2{font-family:'Fraunces',serif;font-size:1.6rem;font-weight:900;margin-bottom:6px}
+.amodal .sub{font-size:.83rem;color:var(--muted);margin-bottom:24px}
+.mclose{position:absolute;top:16px;right:18px;background:none;border:none;
+  font-size:1.2rem;cursor:pointer;color:var(--muted)}
+.auth-toggle{text-align:center;font-size:.83rem;color:var(--muted);margin-top:16px}
+.auth-toggle a{color:var(--green);font-weight:700;cursor:pointer}
+.auth-err{background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.2);
+  color:var(--red);border-radius:10px;padding:10px 14px;font-size:.82rem;
+  margin-bottom:14px;display:none}
+.auth-err.show{display:block}
+
+/* ENQUIRY MODAL */
+.emodal{max-width:460px}
+.emodal h2{font-size:1.3rem}
+
+/* ── SUCCESS ── */
+.success-wrap{text-align:center;display:none;animation:fadeUp .5s ease}
+.success-wrap.show{display:block}
+.s-icon{font-size:3.5rem;margin-bottom:16px}
+.s-title{font-family:'Fraunces',serif;font-size:1.7rem;font-weight:900;margin-bottom:10px}
+.s-text{font-size:.88rem;color:var(--muted);line-height:1.7;max-width:380px;margin:0 auto 20px}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes scrollLeft{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes loadFill{from{width:0}to{width:100%}}
+
+@media(max-width:640px){
+  nav{padding:14px 16px}
+  .nav-links{display:none}
+  .hero-h1{font-size:2.2rem}
+  .listings-wrap,.portal-wrap{padding:60px 16px}
+  .prow{grid-template-columns:1fr}
+  .mpesa-tiers{grid-template-columns:1fr}
+  .hero-stats{gap:24px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="global-loader">
+  <div class="loader-logo">Keja<span>Hub</span></div>
+  <div class="loader-bar"><div class="loader-fill"></div></div>
+  <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-top:4px">Connecting to Firebase…</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo" onclick="showPage('home')">Keja<span>Hub</span></div>
+  <div class="nav-links">
+    <a onclick="showPage('home')">Home</a>
+    <a onclick="showPage('home');setTimeout(()=>document.getElementById('listings-section').scrollIntoView({behavior:'smooth'}),100)">Browse</a>
+    <a onclick="requireAuth('landlord')">List Property</a>
+  </div>
+  <div class="nav-auth">
+    <div id="nav-guest">
+      <button class="btn-outline" onclick="openAuth('login')">Sign In</button>
+      <button class="btn-solid" onclick="openAuth('register')">Register</button>
+    </div>
+    <div id="nav-user" onclick="signOut()">
+      <div class="user-pill">
+        <div class="user-avatar" id="nav-avatar">?</div>
+        <div class="user-name" id="nav-name">User</div>
+        <span style="font-size:.75rem;color:var(--muted);margin-left:4px">↩</span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ══ HOME PAGE ══ -->
+<div id="page-home" class="page active">
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-kag"><span class="dot"></span>Kenya's #1 Rental Platform</div>
+    <h1 class="hero-h1">Find Your <em>Dream Home</em><br>Anywhere in Kenya</h1>
+    <p class="hero-sub">Browse verified vacant properties from trusted landlords across Nairobi, Mombasa, Kisumu and every county in Kenya. Pay listing fees via M-Pesa.</p>
+    <div class="hero-ctas">
+      <button class="btn-hero-p" onclick="document.getElementById('listings-section').scrollIntoView({behavior:'smooth'})">🔍 Browse Properties</button>
+      <button class="btn-hero-s" onclick="requireAuth('landlord')">List My Property →</button>
+    </div>
+    <div class="hero-stats">
+      <div class="hstat"><div class="n" id="stat-listings">—</div><div class="l">Live Listings</div></div>
+      <div class="hstat"><div class="n" id="stat-landlords">—</div><div class="l">Landlords</div></div>
+      <div class="hstat"><div class="n" id="stat-enquiries">—</div><div class="l">Enquiries Sent</div></div>
+      <div class="hstat"><div class="n">47</div><div class="l">Counties</div></div>
+    </div>
+  </div>
+
+  <!-- COUNTIES STRIP -->
+  <div class="counties-strip">
+    <div class="counties-inner" id="counties-strip">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+  <!-- LISTINGS -->
+  <div class="listings-wrap" id="listings-section">
+    <div class="sec-label">Available Now</div>
+    <h2 class="sec-title">Verified Vacant Properties</h2>
+    <div class="filters-row">
+      <input class="filter-input wide" type="text" placeholder="🔍 Search by title, location, county…" id="f-search" oninput="applyFilters()">
+      <select class="filter-input" id="f-type" onchange="applyFilters()">
+        <option value="">All Types</option>
+        <option>Apartment</option><option>House</option>
+        <option>Studio</option><option>Room / Bedsitter</option>
+      </select>
+      <select class="filter-input" id="f-county" onchange="applyFilters()">
+        <option value="">All Counties</option>
+      </select>
+      <select class="filter-input" id="f-price" onchange="applyFilters()">
+        <option value="">Any Rent</option>
+        <option value="5000">Under KES 5,000</option>
+        <option value="10000">Under KES 10,000</option>
+        <option value="20000">Under KES 20,000</option>
+        <option value="50000">Under KES 50,000</option>
+      </select>
+    </div>
+    <div class="listings-grid" id="listings-grid">
+      <div class="loading-grid">⟳ Loading live listings from database…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LANDLORD PORTAL ══ -->
+<div id="page-landlord" class="page">
+  <div class="portal-wrap">
+    <div class="sec-label">Landlord Portal</div>
+    <h2 style="font-family:'Fraunces',serif;font-size:2rem;font-weight:900;margin-bottom:28px">List Your Property</h2>
+
+    <div class="portal-tabs">
+      <button class="ptab active" id="ptab-list" onclick="switchPTab('list')">📋 Property Details</button>
+      <button class="ptab" id="ptab-pay" onclick="switchPTab('pay')">📱 M-Pesa Payment</button>
+    </div>
+
+    <!-- TAB: DETAILS -->
+    <div id="ptab-list-content">
+      <div class="pcard" id="list-form">
+        <h2>Property Details</h2>
+        <div class="sub">Fill in your property info. It goes live after M-Pesa payment is confirmed.</div>
+
+        <div class="pfield"><label>Property Title *</label>
+          <input type="text" id="p-title" placeholder="e.g. Spacious 2-Bedroom Apartment, Westlands"></div>
+        <div class="prow">
+          <div class="pfield"><label>Property Type *</label>
+            <select id="p-type">
+              <option>Apartment</option><option>House</option>
+              <option>Studio</option><option>Room / Bedsitter</option>
+            </select></div>
+          <div class="pfield"><label>Monthly Rent (KES) *</label>
+            <input type="number" id="p-price" placeholder="e.g. 15000"></div>
+        </div>
+        <div class="prow">
+          <div class="pfield"><label>County *</label>
+            <select id="p-county"><option value="">Select county…</option></select></div>
+          <div class="pfield"><label>Town / Area *</label>
+            <input type="text" id="p-area" placeholder="e.g. Westlands, Kilimani"></div>
+        </div>
+        <div class="pfield"><label>Full Address *</label>
+          <input type="text" id="p-addr" placeholder="Building name, road, estate"></div>
+        <div class="pfield"><label>Nearest Landmark</label>
+          <input type="text" id="p-landmark" placeholder="e.g. Near Westgate Mall"></div>
+        <div class="prow">
+          <div class="pfield"><label>Bedrooms</label>
+            <input type="number" id="p-beds" placeholder="2" min="0"></div>
+          <div class="pfield"><label>Bathrooms</label>
+            <input type="number" id="p-baths" placeholder="1" min="1"></div>
+        </div>
+        <div class="pfield"><label>Description</label>
+          <textarea id="p-desc" placeholder="Describe the property — condition, views, access, what's included…"></textarea></div>
+        <div class="pfield"><label>Your Contact Name *</label>
+          <input type="text" id="p-contact" placeholder="Name tenants will see"></div>
+        <div class="pfield"><label>Contact Phone (Safaricom) *</label>
+          <input type="tel" id="p-phone" placeholder="+254 7XX XXX XXX"></div>
+        <div class="pfield">
+          <label>Amenities</label>
+          <div class="amenity-grid">
+            <div class="amenity" onclick="this.classList.toggle('on')">💧 Water</div>
+            <div class="amenity" onclick="this.classList.toggle('on')">⚡ Electricity</div>
+            <div class="amenity" onclick="this.classList.toggle('on')">🔒 Security</div>
+            <div class="amenity" onclick="this.classList.toggle('on')">🚗 Parking</div>
+            <div class="amenity" onclick="this.classList.toggle('on')">📶 WiFi</div>
+            <div class="amenity" onclick="this.classList.toggle('on')">🍳 Kitchen</div>
+            <div class="amenity" onclick="this.classList.toggle('on')">🛋 Furnished</div>
+            <div class="amenity" onclick="this.classList.toggle('on')">❄️ AC</div>
+            <div class="amenity" onclick="this.classList.toggle('on')">🏊 Pool</div>
+          </div>
+        </div>
+        <button class="btn-submit" onclick="saveFormAndGoToPay()">Continue to M-Pesa Payment →</button>
+      </div>
+
+      <div class="success-wrap" id="list-success">
+        <div class="s-icon">🎉</div>
+        <div class="s-title">Your Property is Live!</div>
+        <div class="s-text">Payment confirmed and listing published. Tenants across Kenya can now see your property. You'll receive calls directly on the number you provided.</div>
+        <button class="btn-solid" onclick="showPage('home')">Browse All Listings →</button>
+      </div>
+    </div>
+
+    <!-- TAB: PAY -->
+    <div id="ptab-pay-content" style="display:none">
+      <div class="mpesa-box">
+        <h3>📱 M-Pesa Listing Fee</h3>
+        <p>Choose a listing plan below. You'll receive an M-Pesa STK push to your Safaricom number to complete payment. Your listing goes live instantly after confirmation.</p>
+        <div class="mpesa-tiers">
+          <div class="mtier selected" id="tier-basic" onclick="selectTier('basic',500)">
+            <div class="plan">Basic</div>
+            <div class="price">KES 500</div>
+            <div class="desc">1 listing · 30 days</div>
+          </div>
+          <div class="mtier" id="tier-featured" onclick="selectTier('featured',1200)">
+            <div class="plan">⭐ Featured</div>
+            <div class="price">KES 1,200</div>
+            <div class="desc">Top placement · 60 days</div>
+          </div>
+          <div class="mtier" id="tier-premium" onclick="selectTier('premium',2500)">
+            <div class="plan">🏆 Premium</div>
+            <div class="price">KES 2,500</div>
+            <div class="desc">3 listings · 90 days</div>
+          </div>
+          <div class="mtier" id="tier-agency" onclick="selectTier('agency',5000)">
+            <div class="plan">🏢 Agency</div>
+            <div class="price">KES 5,000</div>
+            <div class="desc">Unlimited · 1 year</div>
+          </div>
+        </div>
+        <div class="mpesa-num">
+          <label>Your M-Pesa / Safaricom Number</label>
+          <input type="tel" id="mpesa-phone" placeholder="0702 244 420" maxlength="12">
+        </div>
+        <button class="btn-mpesa" onclick="initiateMpesa()">📲 Send M-Pesa Request</button>
+        <div class="mpesa-status" id="mpesa-status"></div>
+      </div>
+
+      <div class="pcard" style="border-color:rgba(0,166,81,.2)">
+        <h2 style="font-size:1.1rem">How M-Pesa Payment Works</h2>
+        <div class="sub" style="margin-bottom:0">
+          <ol style="list-style:decimal;padding-left:18px;line-height:2.2;font-size:.88rem">
+            <li>Choose your listing plan above</li>
+            <li>Enter your Safaricom number</li>
+            <li>Tap "Send M-Pesa Request" — an STK push arrives on your phone</li>
+            <li>Enter your M-Pesa PIN to confirm</li>
+            <li>Your listing goes live on Keja Hub immediately ✅</li>
+          </ol>
+          <div style="margin-top:16px;padding:12px;background:var(--sand);border-radius:10px;font-size:.8rem;color:var(--muted)">
+            🔒 Payments processed via <strong>Safaricom Daraja API</strong>. Paybill: <strong>522533</strong> · Account: <strong>KESTATES</strong>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-submit" id="btn-publish" onclick="publishListing()" disabled>
+        Awaiting Payment Confirmation…
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH MODAL -->
+<div class="overlay" id="auth-overlay">
+  <div class="amodal">
+    <button class="mclose" onclick="closeOverlay('auth-overlay')">✕</button>
+    <h2 id="auth-title">Welcome Back</h2>
+    <div class="sub" id="auth-sub">Sign in to your Keja Hub account</div>
+    <div class="auth-err" id="auth-err"></div>
+    <div id="auth-register-fields">
+      <div class="pfield"><label>Full Name</label>
+        <input type="text" id="auth-name" placeholder="Your full name"></div>
+      <div class="pfield"><label>Phone (Safaricom)</label>
+        <input type="tel" id="auth-phone2" placeholder="+254 7XX XXX XXX"></div>
+    </div>
+    <div class="pfield"><label>Email Address</label>
+      <input type="email" id="auth-email" placeholder="you@email.com"></div>
+    <div class="pfield"><label>Password</label>
+      <input type="password" id="auth-pass" placeholder="Minimum 6 characters" onkeydown="if(event.key==='Enter')submitAuth()"></div>
+    <button class="btn-submit" onclick="submitAuth()" id="auth-btn">Sign In</button>
+    <div class="auth-toggle" id="auth-toggle">
+      Don't have an account? <a onclick="switchAuthMode()">Register free</a>
+    </div>
+  </div>
+</div>
+
+<!-- ENQUIRY MODAL -->
+<div class="overlay" id="enq-overlay">
+  <div class="amodal emodal">
+    <button class="mclose" onclick="closeOverlay('enq-overlay')">✕</button>
+    <h2>Contact Landlord</h2>
+    <div class="sub" id="enq-sub">Send your interest to the landlord directly</div>
+    <div class="pfield"><label>Your Name</label>
+      <input type="text" id="enq-name" placeholder="Full name"></div>
+    <div class="pfield"><label>Your Phone</label>
+      <input type="tel" id="enq-phone" placeholder="+254 7XX XXX XXX"></div>
+    <div class="pfield"><label>Message</label>
+      <textarea id="enq-msg" style="resize:vertical;min-height:80px;width:100%;padding:12px 14px;border:2px solid rgba(26,92,53,.15);border-radius:12px;background:var(--cream);font-family:'Plus Jakarta Sans',sans-serif;font-size:.9rem;outline:none;color:var(--text)" placeholder="Hi, I'm interested in this property. Is it still available?"></textarea></div>
+    <button class="btn-submit" onclick="submitEnquiry()">Send Enquiry →</button>
+  </div>
+</div>
+
+<!-- FIREBASE + APP LOGIC -->
+<script>
+// ══════════════════════════════════════════════════════
+// 🔥 FIREBASE CONFIG — Replace with YOUR project config
+// Get from: Firebase Console → Project Settings → Your Apps
+// ══════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyDRVQ6Z1UgPTuR0Wy5vM6xfctF2h8WJqlQ",
+  authDomain: "keja-hub.firebaseapp.com",
+  projectId: "keja-hub",
+  storageBucket: "keja-hub.firebasestorage.app",
+  messagingSenderId: "561454435893",
+  appId: "1:561454435893:web:6ec93f56bcd8379717ab7c",
+  measurementId: "G-HSC7N2E9VK"
+};
+
+// ── Init Firebase ──
+let db, auth, currentUser = null;
+let allListings = [], filteredListings = [];
+let currentEnqListingId = null;
+let selectedTier = 'basic', selectedAmount = 500;
+let pendingListingData = null;
+let authMode = 'login', afterAuthAction = null;
+
+function initFirebase() {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    auth = firebase.auth();
+
+    // Real-time auth state
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      if (user) {
+        document.getElementById('nav-guest').style.display = 'none';
+        document.getElementById('nav-user').style.display = 'flex';
+        document.getElementById('nav-avatar').textContent = (user.displayName || user.email || 'U')[0].toUpperCase();
+        document.getElementById('nav-name').textContent = user.displayName || user.email.split('@')[0];
+      } else {
+        document.getElementById('nav-guest').style.display = 'flex';
+        document.getElementById('nav-user').style.display = 'none';
+      }
+    });
+
+    // Load listings real-time
+    db.collection('listings')
+      .where('status', '==', 'vacant')
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(snap => {
+        allListings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        filteredListings = [...allListings];
+        renderListings();
+        updateStats();
+      }, err => {
+        console.warn('Firestore note:', err.message);
+        allListings = [];
+        filteredListings = [];
+        renderListings();
+        updateStats();
+      });
+
+    // Load stats counters
+    db.collection('stats').doc('global').onSnapshot(snap => {
+      if (snap.exists) {
+        const d = snap.data();
+        if (d.enquiries) document.getElementById('stat-enquiries').textContent = d.enquiries + '+';
+      }
+    });
+
+    hideLoader();
+  } catch (e) {
+    console.warn('Firebase init error:', e.message);
+    allListings = [];
+    filteredListings = [];
+    renderListings();
+    updateStats();
+    hideLoader();
+  }
+}
+
+// ── DEMO DATA (shown when Firebase not yet configured) ──
+function loadDemoData_disabled() {
+  
+  allListings = [
+    {id:'d1',title:'Modern 2-Bed Apartment',type:'Apartment',price:18000,county:'Nairobi',area:'Westlands',address:'The Wings Apartments, Waiyaki Way',landmark:'Near ABC Place',beds:2,baths:1,contact:'Mrs. Wanjiku',phone:'+254 722 111 222',amenities:['💧 Water','⚡ Electricity','🔒 Security','🚗 Parking'],status:'vacant',featured:true},
+    {id:'d2',title:'3-Bed Family House',type:'House',price:35000,county:'Kiambu',area:'Ruaka',address:'Ruaka Estate, Limuru Road',landmark:'Near Quickmart Ruaka',beds:3,baths:2,contact:'Mr. Kamau',phone:'+254 733 222 333',amenities:['🏊 Pool','🚗 Parking','💧 Water','⚡ Electricity'],status:'vacant',featured:false},
+    {id:'d3',title:'Bedsitter – Nairobi CBD',type:'Room / Bedsitter',price:5500,county:'Nairobi',area:'Nairobi CBD',address:'Kirinyaga Road, Off Tom Mboya',landmark:'Near Globe Cinema',beds:1,baths:1,contact:'Aisha Odhiambo',phone:'+254 710 333 444',amenities:['💧 Water','⚡ Electricity'],status:'vacant',featured:false},
+    {id:'d4',title:'Studio – Kilimani',type:'Studio',price:22000,county:'Nairobi',area:'Kilimani',address:'Elgeyo Marakwet Road',landmark:'Near Yaya Centre',beds:1,baths:1,contact:'Brian Mwangi',phone:'+254 720 555 666',amenities:['📶 WiFi','⚡ Electricity','🔒 Security'],status:'vacant',featured:true},
+    {id:'d5',title:'4-Bed Villa with Pool',type:'House',price:120000,county:'Mombasa',area:'Nyali',address:'Links Road, Nyali Estate',landmark:'Near Nyali Beach',beds:4,baths:3,contact:'Fatuma Ali',phone:'+254 741 777 888',amenities:['🏊 Pool','🚗 Parking','🛋 Furnished','❄️ AC'],status:'vacant',featured:true},
+    {id:'d6',title:'1-Bed Apartment – Kisumu',type:'Apartment',price:9000,county:'Kisumu',area:'Milimani',address:'Milimani Estate, Off Jomo Kenyatta Hwy',landmark:'Near Kisumu Airport',beds:1,baths:1,contact:'Otieno Ouma',phone:'+254 715 999 000',amenities:['💧 Water','⚡ Electricity','🔒 Security'],status:'vacant',featured:false},
+  ];
+  filteredListings = [...allListings];
+  renderListings();
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('stat-listings').textContent = allListings.length + '+';
+  document.getElementById('stat-landlords').textContent = Math.max(allListings.length, 10) + '+';
+}
+
+// ── RENDER LISTINGS ──
+const typeEmoji = {Apartment:'🏢',House:'🏡','Studio':'🛋','Room / Bedsitter':'🚪'};
+const typeBg = {Apartment:'apt',House:'house',Studio:'studio','Room / Bedsitter':'room'};
+
+function renderListings() {
+  const grid = document.getElementById('listings-grid');
+  if (!filteredListings.length) {
+    grid.innerHTML = `<div class="empty"><div class="ei">🏚️</div><p>No properties match your search. Adjust filters above.</p></div>`;
+    return;
+  }
+  // featured first
+  const sorted = [...filteredListings].sort((a,b) => (b.featured?1:0)-(a.featured?1:0));
+  grid.innerHTML = sorted.map(l => `
+    <div class="prop-card">
+      <div class="card-header ${typeBg[l.type]||'apt'}">
+        ${l.featured ? '<span class="vacant-pill">⭐ FEATURED</span>' : '<span class="vacant-pill">● VACANT</span>'}
+        <span>${typeEmoji[l.type]||'🏠'}</span>
+        <div class="price-pill">KES ${Number(l.price).toLocaleString()}</div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">${l.title}</div>
+        <div class="card-loc">📍 ${l.area}, ${l.county} County</div>
+        <div class="card-chips">
+          ${l.beds?`<span class="chip">🛏 ${l.beds} Bed${l.beds>1?'s':''}</span>`:''}
+          ${l.baths?`<span class="chip">🚿 ${l.baths} Bath</span>`:''}
+          <span class="chip">${l.type}</span>
+          ${(l.amenities||[]).slice(0,2).map(a=>`<span class="chip">${a}</span>`).join('')}
+        </div>
+        ${l.landmark?`<div style="font-size:.78rem;color:var(--muted);margin-bottom:10px">📌 ${l.landmark}</div>`:''}
+        <div class="card-landlord">
+          <div class="ll-avatar">${(l.contact||'L')[0].toUpperCase()}</div>
+          <div class="ll-info">
+            <div class="ll-name">${l.contact||'Landlord'}</div>
+            <div class="ll-phone">${l.phone||''}</div>
+          </div>
+        </div>
+        <button class="btn-enquire" onclick="openEnquiry('${l.id}','${(l.title||'').replace(/'/g,"\\'")}','${(l.contact||'').replace(/'/g,"\\'")}')">
+          📩 Enquire About This Property
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function applyFilters() {
+  const q = document.getElementById('f-search').value.toLowerCase();
+  const type = document.getElementById('f-type').value;
+  const county = document.getElementById('f-county').value;
+  const maxPrice = parseInt(document.getElementById('f-price').value)||Infinity;
+  filteredListings = allListings.filter(l =>
+    (!q || (l.title+l.area+l.county+l.address).toLowerCase().includes(q)) &&
+    (!type || l.type === type) &&
+    (!county || l.county === county) &&
+    (l.price <= maxPrice)
+  );
+  renderListings();
+}
+
+// ── COUNTIES ──
+const KENYA_COUNTIES = ['Baringo','Bomet','Bungoma','Busia','Elgeyo-Marakwet','Embu','Garissa','Homa Bay','Isiolo','Kajiado','Kakamega','Kericho','Kiambu','Kilifi','Kirinyaga','Kisii','Kisumu','Kitui','Kwale','Laikipia','Lamu','Machakos','Makueni','Mandera','Marsabit','Meru','Migori','Mombasa','Murang\'a','Nairobi','Nakuru','Nandi','Narok','Nyamira','Nyandarua','Nyeri','Samburu','Siaya','Taita-Taveta','Tana River','Tharaka-Nithi','Trans-Nzoia','Turkana','Uasin Gishu','Vihiga','Wajir','West Pokot'];
+
+function populateCounties() {
+  ['f-county','p-county'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    KENYA_COUNTIES.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
+  });
+  // Counties strip
+  const inner = document.getElementById('counties-strip');
+  const tags = KENYA_COUNTIES.map(c => `<span class="county-tag">${c}</span><span class="county-dot">●</span>`).join('');
+  inner.innerHTML = tags + tags; // duplicate for seamless loop
+}
+
+// ── AUTH ──
+function openAuth(mode) {
+  authMode = mode;
+  updateAuthUI();
+  document.getElementById('auth-err').classList.remove('show');
+  document.getElementById('auth-email').value = '';
+  document.getElementById('auth-pass').value = '';
+  document.getElementById('auth-name').value = '';
+  openOverlay('auth-overlay');
+}
+function updateAuthUI() {
+  const isReg = authMode === 'register';
+  document.getElementById('auth-title').textContent = isReg ? 'Create Account' : 'Welcome Back';
+  document.getElementById('auth-sub').textContent = isReg ? 'Join Keja Hub — free for tenants' : 'Sign in to your Keja Hub account';
+  document.getElementById('auth-btn').textContent = isReg ? 'Create Account' : 'Sign In';
+  document.getElementById('auth-toggle').innerHTML = isReg
+    ? 'Already have an account? <a onclick="switchAuthMode()">Sign in</a>'
+    : 'Don\'t have an account? <a onclick="switchAuthMode()">Register free</a>';
+  document.getElementById('auth-register-fields').style.display = isReg ? 'block' : 'none';
+}
+function switchAuthMode() { authMode = authMode === 'login' ? 'register' : 'login'; updateAuthUI(); }
+
+async function submitAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  const errEl = document.getElementById('auth-err');
+  errEl.classList.remove('show');
+  if (!email || !pass) { showAuthErr('Please fill in all fields.'); return; }
+  try {
+    if (authMode === 'register') {
+      const name = document.getElementById('auth-name').value.trim();
+      const phone = document.getElementById('auth-phone2').value.trim();
+      if (!name) { showAuthErr('Please enter your name.'); return; }
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      await cred.user.updateProfile({ displayName: name });
+      // Save to Firestore
+      if (db && db.collection) {
+        await db.collection('users').doc(cred.user.uid).set({
+          name, email, phone, role: 'user', createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      showToast('✅ Account created! Welcome to Keja Hub');
+    } else {
+      await auth.signInWithEmailAndPassword(email, pass);
+      showToast('✅ Signed in successfully');
+    }
+    closeOverlay('auth-overlay');
+    if (afterAuthAction) { afterAuthAction(); afterAuthAction = null; }
+  } catch (e) {
+    const msgs = {
+      'auth/email-already-in-use':'Email already registered. Sign in instead.',
+      'auth/invalid-email':'Please enter a valid email address.',
+      'auth/weak-password':'Password must be at least 6 characters.',
+      'auth/user-not-found':'No account found with this email.',
+      'auth/wrong-password':'Incorrect password. Try again.',
+      'auth/too-many-requests':'Too many attempts. Please wait a moment.',
+      'auth/network-request-failed':'Network error. Check your connection.',
+    };
+    showAuthErr(msgs[e.code] || e.message);
+  }
+}
+function showAuthErr(msg) {
+  const el = document.getElementById('auth-err');
+  el.textContent = '⚠ ' + msg; el.classList.add('show');
+}
+function signOut() {
+  if (!confirm('Sign out of Keja Hub?')) return;
+  auth.signOut().then(() => showToast('Signed out'));
+}
+
+// ── REQUIRE AUTH ──
+function requireAuth(action) {
+  if (currentUser) {
+    if (action === 'landlord') showPage('landlord');
+  } else {
+    afterAuthAction = () => { if (action === 'landlord') showPage('landlord'); };
+    openAuth('login');
+  }
+}
+
+// ── LANDLORD PORTAL ──
+function saveFormAndGoToPay() {
+  const title = document.getElementById('p-title').value.trim();
+  const price = parseInt(document.getElementById('p-price').value);
+  const county = document.getElementById('p-county').value;
+  const area = document.getElementById('p-area').value.trim();
+  const addr = document.getElementById('p-addr').value.trim();
+  const contact = document.getElementById('p-contact').value.trim();
+  const phone = document.getElementById('p-phone').value.trim();
+  if (!title||!price||!county||!area||!addr||!contact||!phone) {
+    showToast('⚠ Please fill all required fields (marked with *)', 'error'); return;
+  }
+  if (price < 500) { showToast('⚠ Rent must be at least KES 500', 'error'); return; }
+  if (!/^(\+254|0)[17]\d{8}$/.test(phone.replace(/\s/g,''))) {
+    showToast('⚠ Enter a valid Safaricom number', 'error'); return;
+  }
+  pendingListingData = {
+    title, price, county, area,
+    address: addr,
+    landmark: document.getElementById('p-landmark').value.trim(),
+    type: document.getElementById('p-type').value,
+    beds: parseInt(document.getElementById('p-beds').value)||1,
+    baths: parseInt(document.getElementById('p-baths').value)||1,
+    desc: document.getElementById('p-desc').value.trim(),
+    contact, phone,
+    amenities: [...document.querySelectorAll('.amenity.on')].map(e=>e.textContent.trim()),
+    status: 'vacant', featured: false,
+    landlordId: currentUser?.uid || 'demo',
+    landlordEmail: currentUser?.email || '',
+    createdAt: new Date().toISOString(),
+  };
+  switchPTab('pay');
+}
+
+function switchPTab(tab) {
+  document.getElementById('ptab-list').classList.toggle('active', tab==='list');
+  document.getElementById('ptab-pay').classList.toggle('active', tab==='pay');
+  document.getElementById('ptab-list-content').style.display = tab==='list'?'block':'none';
+  document.getElementById('ptab-pay-content').style.display = tab==='pay'?'block':'none';
+}
+
+function selectTier(tier, amount) {
+  selectedTier = tier; selectedAmount = amount;
+  document.querySelectorAll('.mtier').forEach(el => el.classList.remove('selected'));
+  document.getElementById('tier-'+tier).classList.add('selected');
+}
+
+// M-Pesa STK Push
+async function initiateMpesa() {
+  const rawPhone = document.getElementById('mpesa-phone').value.trim().replace(/\s/g,'');
+  const statusEl = document.getElementById('mpesa-status');
+
+  // Validate phone
+  const phoneRegex = /^(\+254|254|0)[17]\d{8}$/;
+  if (!phoneRegex.test(rawPhone)) {
+    showToast('⚠ Enter a valid Safaricom number', 'error'); return;
+  }
+  // Format to 254XXXXXXXXX
+  let formatted = rawPhone.replace(/^(\+254|254)/, '254').replace(/^0/, '254');
+
+  statusEl.textContent = '⟳ Sending STK push to your phone…';
+
+  // ══════════════════════════════════════════════════════
+  // M-PESA DARAJA API CALL
+  // You need to set up a backend proxy (Node.js/Firebase Function)
+  // to call Safaricom's STK Push endpoint securely.
+  // See SETUP-GUIDE.html for full backend instructions.
+  // ══════════════════════════════════════════════════════
+  try {
+    // In production: call your backend proxy, e.g.:
+    // const res = await fetch('https://your-backend.com/api/mpesa/stk', {
+    //   method:'POST', headers:{'Content-Type':'application/json'},
+    //   body: JSON.stringify({ phone: formatted, amount: selectedAmount, accountRef: 'KESTATES' })
+    // });
+    // const data = await res.json();
+    // if (data.ResponseCode === '0') { ... payment initiated }
+
+    // DEMO SIMULATION (remove when backend is live):
+    await new Promise(r => setTimeout(r, 2000));
+    statusEl.textContent = '✅ STK push sent! Check your phone and enter your M-Pesa PIN';
+    showToast('📱 Check your phone for M-Pesa prompt', 'mpesa');
+
+    // Simulate confirmation after 8 seconds (in prod: use a webhook callback)
+    setTimeout(() => {
+      statusEl.textContent = '✅ Payment confirmed! KES ' + selectedAmount + ' received. You can now publish.';
+      document.getElementById('btn-publish').disabled = false;
+      document.getElementById('btn-publish').textContent = '🏠 Publish My Listing Now →';
+      showToast('💚 M-Pesa payment confirmed!', 'mpesa');
+    }, 8000);
+
+  } catch(e) {
+    statusEl.textContent = '❌ Error initiating payment. Try again.';
+    showToast('❌ M-Pesa request failed', 'error');
+  }
+}
+
+async function publishListing() {
+  if (!pendingListingData) { showToast('⚠ Please fill in property details first', 'error'); return; }
+  const btn = document.getElementById('btn-publish');
+  btn.disabled = true; btn.textContent = 'Publishing…';
+
+  const listingData = {
+    ...pendingListingData,
+    tier: selectedTier,
+    featured: selectedTier === 'featured' || selectedTier === 'premium' || selectedTier === 'agency',
+    paymentAmount: selectedAmount,
+    paymentMethod: 'mpesa',
+    createdAt: db?.firestore?.FieldValue?.serverTimestamp() || new Date().toISOString(),
+  };
+
+  try {
+    if (db && db.collection) {
+      await db.collection('listings').add(listingData);
+      // Update stats
+      await db.collection('stats').doc('global').set({
+        listings: firebase.firestore.FieldValue.increment(1)
+      }, { merge: true });
+    }
+    document.getElementById('list-form').style.display = 'none';
+    document.getElementById('list-success').classList.add('show');
+    showToast('🎉 Listing published live!', 'mpesa');
+  } catch(e) {
+    // Demo fallback
+    allListings.unshift({ id:'new-'+Date.now(), ...listingData });
+    filteredListings = [...allListings];
+    renderListings();
+    document.getElementById('list-form').style.display = 'none';
+    document.getElementById('list-success').classList.add('show');
+    showToast('🎉 Listing published!', 'mpesa');
+  }
+}
+
+// ── ENQUIRIES ──
+function openEnquiry(id, title, contact) {
+  currentEnqListingId = id;
+  document.getElementById('enq-sub').textContent = `About: ${title} — Landlord: ${contact}`;
+  document.getElementById('enq-name').value = currentUser?.displayName || '';
+  openOverlay('enq-overlay');
+}
+
+async function submitEnquiry() {
+  const name = document.getElementById('enq-name').value.trim();
+  const phone = document.getElementById('enq-phone').value.trim();
+  const msg = document.getElementById('enq-msg').value.trim();
+  if (!name || !phone) { showToast('⚠ Please enter your name and phone', 'error'); return; }
+
+  const enqData = {
+    listingId: currentEnqListingId,
+    tenantName: name, tenantPhone: phone,
+    message: msg || 'I am interested in this property.',
+    tenantId: currentUser?.uid || null,
+    tenantEmail: currentUser?.email || null,
+    status: 'new',
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    if (db && db.collection) {
+      await db.collection('enquiries').add(enqData);
+      await db.collection('stats').doc('global').set({
+        enquiries: firebase.firestore.FieldValue.increment(1)
+      }, { merge: true });
+    }
+    closeOverlay('enq-overlay');
+    showToast('✅ Enquiry sent! The landlord will contact you soon');
+  } catch(e) {
+    closeOverlay('enq-overlay');
+    showToast('✅ Enquiry sent!');
+  }
+}
+
+// ── UI HELPERS ──
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  window.scrollTo(0,0);
+}
+function openOverlay(id) { document.getElementById(id).classList.add('open'); }
+function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target===o) o.classList.remove('open'); });
+});
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show' + (type?' '+type:'');
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+function hideLoader() {
+  setTimeout(() => document.getElementById('global-loader').classList.add('hidden'), 1600);
+}
+
+// ── BOOT ──
+window.addEventListener('DOMContentLoaded', () => {
+  populateCounties();
+  initFirebase();
+});
+</script>
+</body>
+</html>
